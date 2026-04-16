@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRO P2P TERMINAL | Advanced OTC Global</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root { --b-yellow: #fcd535; --b-black: #0b0e11; --b-gray: #1e2329; --b-red: #f6465d; --b-green: #0ecb81; }
+        body { background-color: var(--b-black); color: #eaecef; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .tab-active { color: var(--b-yellow); border-bottom: 3px solid var(--b-yellow); }
+        .modal-overlay { background: rgba(0,0,0,0.96); display: none; position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center; padding: 15px; backdrop-filter: blur(5px); }
+        .show-modal { display: flex !important; }
+        .custom-popup { animation: zoomIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; }
+        @keyframes zoomIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .status-pulse { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        .network-selected { border-color: var(--b-yellow) !important; background: rgba(252, 213, 53, 0.1) !important; color: var(--b-yellow) !important; }
+        .close-btn { position: absolute; top: 20px; right: 20px; color: #666; cursor: pointer; font-size: 1.5rem; }
+        .chat-scroll::-webkit-scrollbar { width: 4px; }
+        .chat-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+    </style>
+</head>
+<body class="pb-10">
+
+    <div id="notifSystem" class="fixed top-4 right-4 z-[10000] space-y-3 pointer-events-none"></div>
+
+    <nav class="bg-[#12161c] border-b border-gray-800 sticky top-0 z-[100] px-4 py-3">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="location.reload()">
+                <div class="bg-yellow-500 p-2 rounded-xl shadow-lg shadow-yellow-500/20"><i class="fas fa-bolt-lightning text-black"></i></div>
+                <div>
+                    <h1 class="text-xl font-black italic tracking-tighter leading-none">PRO<span class="text-yellow-500">P2P</span></h1>
+                    <p class="text-[8px] text-gray-500 font-bold tracking-widest uppercase">Verified Terminal</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="hidden md:block text-right">
+                    <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Portfolio Balance</p>
+                    <div class="flex items-center gap-2">
+                        <span class="text-yellow-500 mono text-xl font-black tracking-tighter"><span id="navUsdt">0.00</span> USDT</span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="openModal('depositModal')" class="bg-yellow-500 text-black px-5 py-2.5 rounded-xl font-black text-xs hover:scale-105 transition-all">DEPOSIT</button>
+                    <button onclick="openModal('withdrawModal')" class="bg-gray-800 text-white border border-gray-700 px-5 py-2.5 rounded-xl font-black text-xs hover:scale-105 transition-all">WITHDRAW</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="md:hidden bg-[#1e2329] p-3 border-b border-gray-800 flex justify-between px-6">
+        <span class="text-[10px] text-gray-400 font-bold uppercase">Main Assets</span>
+        <span class="text-yellow-500 mono font-black"><span id="navUsdtMob">0.00</span> USDT</span>
+    </div>
+
+    <main class="max-w-7xl mx-auto p-4 sm:p-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-gray-800">
+            <div class="flex gap-8">
+                <button onclick="switchView('market')" id="vMarket" class="pb-4 font-black tab-active uppercase tracking-widest text-xs">P2P Marketplace</button>
+                <button onclick="switchView('orders')" id="vOrders" class="pb-4 font-black text-gray-500 relative uppercase tracking-widest text-xs">
+                    My Orders <span id="orderCount" class="ml-1 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span>
+                </button>
+                <button onclick="switchView('history')" id="vHistory" class="pb-4 font-black text-gray-500 uppercase tracking-widest text-xs">History</button>
+            </div>
+            <div id="p2pToggle" class="flex items-center bg-gray-900 p-1.5 rounded-2xl mb-3 self-start">
+                <button onclick="setTradeMode('BUY')" id="btnBuy" class="px-8 py-2 rounded-xl font-black text-[11px] bg-green-600 text-white transition-all shadow-lg">BUY</button>
+                <button onclick="setTradeMode('SELL')" id="btnSell" class="px-8 py-2 rounded-xl font-black text-[11px] text-gray-500 transition-all">SELL</button>
+            </div>
+        </div>
+
+        <div id="marketView" class="view-section">
+            <div id="adGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+
+        <div id="ordersView" class="view-section hidden">
+            <div id="activeOrdersList" class="space-y-4 min-h-[400px]"></div>
+        </div>
+
+        <div id="historyView" class="view-section hidden">
+            <div class="bg-[#12161c] rounded-[2rem] border border-gray-800 overflow-hidden shadow-2xl">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-gray-800/50 text-gray-400 font-bold uppercase">
+                        <tr><th class="p-6">Type</th><th class="p-6">Assets</th><th class="p-6">Status</th><th class="p-6 text-right">Date</th></tr>
+                    </thead>
+                    <tbody id="historyBody" class="font-bold"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <div id="actionModal" class="modal-overlay">
+        <div class="bg-[#1e2329] w-full max-w-lg p-8 rounded-[2.5rem] border border-gray-700 custom-popup shadow-2xl">
+            <div onclick="closeAllModals()" class="close-btn"><i class="fas fa-times"></i></div>
+            <div class="flex justify-between items-start mb-8">
+                <div>
+                    <h3 id="actionTitle" class="text-3xl font-black italic tracking-tighter uppercase">BUY USDT</h3>
+                    <p id="merchantNameDisp" class="text-xs text-yellow-500 font-bold mt-1 uppercase"></p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Market Rate</p>
+                    <p class="text-2xl font-black text-white mono">₹<span id="actRate">0.00</span></p>
+                </div>
+            </div>
+            <div class="space-y-6">
+                <div class="relative">
+                    <div class="flex justify-between text-[10px] font-black uppercase mb-3 text-gray-500">
+                        <span>Enter Fiat Amount (INR)</span>
+                        <span id="limitDisp" class="text-gray-400">Limit: ₹0 - ₹0</span>
+                    </div>
+                    <input type="number" id="actInp" oninput="calculateTrade()" class="w-full bg-gray-900 p-6 rounded-2xl border border-gray-700 outline-none text-3xl font-black mono text-white focus:border-yellow-500 transition-all" placeholder="0.00">
+                </div>
+                <div class="bg-yellow-500/5 p-6 rounded-[2rem] border-2 border-dashed border-gray-700 flex justify-between items-center">
+                    <div><p class="text-[10px] text-gray-500 font-black uppercase">You will receive</p><p class="text-3xl font-black text-white"><span id="actReceive">0.00</span> <span class="text-sm font-bold text-yellow-500">USDT</span></p></div>
+                    <i class="fas fa-arrow-right-arrow-left text-gray-700 text-xl"></i>
+                </div>
+                <button id="actBtn" onclick="initiateTrade()" class="w-full py-6 rounded-2xl font-black text-xl shadow-2xl active:scale-95 transition-all uppercase tracking-widest">CONTINUE TRADE</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="depositModal" class="modal-overlay">
+        <div class="bg-[#1e2329] w-full max-w-md p-8 rounded-[2.5rem] border border-gray-700 custom-popup shadow-2xl">
+            <div onclick="closeAllModals()" class="close-btn"><i class="fas fa-times"></i></div>
+            <div id="depStep1">
+                <h3 class="text-2xl font-black italic mb-6">FUND WALLET</h3>
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <button onclick="selectNetwork('BEP20', 'dep')" id="depnetBEP20" class="p-4 rounded-2xl border-2 border-gray-700 font-black text-xs network-selected">BEP-20</button>
+                    <button onclick="selectNetwork('ERC20', 'dep')" id="depnetERC20" class="p-4 rounded-2xl border-2 border-gray-700 font-black text-xs">ERC-20</button>
+                </div>
+                <input type="number" id="depAmount" class="w-full bg-gray-900 border border-gray-700 p-5 rounded-2xl outline-none mb-6 text-3xl font-black mono text-white" placeholder="0.00">
+                <button onclick="showDepQR()" class="w-full bg-yellow-500 text-black py-5 rounded-2xl font-black text-lg shadow-lg shadow-yellow-500/10">GENERATE ADDRESS</button>
+            </div>
+            <div id="depStep2" class="hidden text-center">
+                <div class="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl shadow-white/5"><img id="qrImg" src="" class="w-48 h-48"></div>
+                <div class="bg-black/40 p-4 rounded-2xl mb-6 relative group border border-gray-800">
+                    <p class="text-[9px] text-gray-500 font-black uppercase mb-2">Deposit Address (USDT)</p>
+                    <p class="text-[10px] text-yellow-500 mono break-all">0x6473d05d310C09199FacB9F738Cac86e04b68047</p>
+                </div>
+                <button onclick="confirmDeposit()" class="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg mb-4">I HAVE TRANSFERRED</button>
+                <p class="text-[10px] text-gray-500 font-bold">Waiting for blockchain confirmation...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="withdrawModal" class="modal-overlay">
+        <div class="bg-[#1e2329] w-full max-w-md p-8 rounded-[2.5rem] border border-gray-700 custom-popup shadow-2xl">
+            <div onclick="closeAllModals()" class="close-btn"><i class="fas fa-times"></i></div>
+            <h3 class="text-2xl font-black italic mb-6">WITHDRAW ASSETS</h3>
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <button onclick="selectNetwork('BEP20', 'wit')" id="witnetBEP20" class="p-4 rounded-2xl border-2 border-gray-700 font-black text-xs network-selected">BEP-20</button>
+                <button onclick="selectNetwork('ERC20', 'wit')" id="witnetERC20" class="p-4 rounded-2xl border-2 border-gray-700 font-black text-xs">ERC-20</button>
+            </div>
+            <div class="space-y-5">
+                <input type="text" id="witAddress" class="w-full bg-gray-900 border border-gray-700 p-5 rounded-2xl outline-none text-sm font-bold text-white" placeholder="Recipient Wallet Address">
+                <div class="relative">
+                    <input type="number" id="witAmount" class="w-full bg-gray-900 border border-gray-700 p-5 rounded-2xl outline-none text-2xl font-black mono text-white" placeholder="0.00">
+                    <button onclick="maxWithdraw()" class="absolute right-4 top-1/2 -translate-y-1/2 text-yellow-500 font-black text-xs uppercase">Max</button>
+                </div>
+                <button onclick="processWithdraw()" class="w-full bg-white text-black py-5 rounded-2xl font-black text-lg mt-4 shadow-xl active:scale-95 transition-all">CONFIRM WITHDRAWAL</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="dealPage" class="fixed inset-0 bg-[#0b0e11] z-[10000] hidden flex-col">
+        <header class="p-5 bg-[#12161c] border-b border-gray-800 flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <button onclick="exitDeal()" class="bg-gray-800 w-12 h-12 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-all"><i class="fas fa-arrow-left"></i></button>
+                <div>
+                    <h4 id="dMerchantName" class="font-black text-base text-yellow-500 leading-none uppercase italic">Merchant</h4>
+                    <p id="dOrderId" class="text-[10px] text-gray-500 font-bold mono mt-1">#000000000</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="dealTimerBox" class="hidden bg-red-600/10 border border-red-600/20 px-4 py-2 rounded-xl">
+                    <p class="text-[8px] text-red-500 font-black uppercase text-center mb-0.5">Expires In</p>
+                    <p id="dealTimer" class="text-red-500 mono font-black text-sm">02:00</p>
+                </div>
+                <button onclick="cancelTradeFromDeal()" class="text-gray-500 text-[10px] font-black uppercase hover:text-red-500 transition-all underline">Cancel Order</button>
+            </div>
+        </header>
+
+        <div class="flex-1 p-6 overflow-hidden max-w-5xl mx-auto w-full flex flex-col lg:flex-row gap-6">
+            <div class="lg:w-1/3 space-y-4">
+                <div class="bg-[#1e2329] p-6 rounded-[2rem] border border-gray-800 shadow-xl">
+                    <p class="text-[10px] text-gray-500 font-black uppercase mb-4 tracking-widest">Trade Summary</p>
+                    <div class="space-y-6">
+                        <div><p class="text-xs text-gray-400 font-bold mb-1">Total Pay</p><p class="text-3xl font-black text-white" id="dInr">₹0.00</p></div>
+                        <div class="h-px bg-gray-800"></div>
+                        <div><p class="text-xs text-gray-400 font-bold mb-1">Receiving</p><p class="text-3xl font-black text-yellow-500" id="dUsdt">0.00 USDT</p></div>
+                        <div id="statusTag" class="bg-yellow-500/10 text-yellow-500 text-[10px] font-black p-3 rounded-xl text-center status-pulse uppercase border border-yellow-500/20">Awaiting Action</div>
+                    </div>
+                </div>
+                <div id="paymentBox" class="bg-green-600/5 p-6 rounded-[2rem] border border-green-600/20 hidden">
+                    <p class="text-[10px] text-green-500 font-black uppercase mb-2">Merchant Payment Info</p>
+                    <p class="text-xs text-gray-400 font-bold mb-3">Pay exactly as shown above to:</p>
+                    <div class="bg-black/30 p-4 rounded-xl flex justify-between items-center">
+                        <span class="mono text-white text-sm font-bold">NAVYARD@FAM</span>
+                        <i class="fas fa-copy text-gray-600 cursor-pointer hover:text-white"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col bg-[#12161c] rounded-[2rem] border border-gray-800 overflow-hidden shadow-2xl">
+                <div id="chatBox" class="flex-1 p-6 overflow-y-auto space-y-4 chat-scroll"></div>
+                
+                <div class="p-5 bg-gray-900/50 border-t border-gray-800 space-y-4">
+                    <div id="mainActionContainer">
+                        <button id="dealMainBtn" onclick="handleMainAction()" class="w-full py-5 rounded-2xl font-black text-base shadow-xl active:scale-95 transition-all uppercase tracking-widest"></button>
+                    </div>
+                    <div class="flex gap-3">
+                        <input type="text" id="msgInp" class="flex-1 bg-gray-800 p-4 rounded-xl outline-none border border-gray-700 text-sm focus:border-yellow-500 transition-all font-bold" placeholder="Write a message...">
+                        <button onclick="sendUserMsg()" class="bg-yellow-500 text-black px-6 rounded-xl font-bold hover:scale-105 transition-all shadow-lg shadow-yellow-500/10"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="alertModal" class="modal-overlay">
+        <div class="bg-[#1e2329] w-full max-w-sm p-8 rounded-[2.5rem] border border-gray-700 custom-popup text-center">
+            <div id="alertIcon" class="text-6xl mb-6"></div>
+            <h3 id="alertTitle" class="text-2xl font-black italic mb-2 uppercase">TITLE</h3>
+            <p id="alertMsg" class="text-gray-400 text-sm mb-10 font-bold leading-relaxed"></p>
+            <button onclick="closeAllModals()" class="w-full bg-yellow-500 text-black py-4 rounded-2xl font-black text-lg">DISMISS</button>
+        </div>
+    </div>
+
+    <script>
+        // Core Engine Variables
+        let balance = parseFloat(localStorage.getItem('p2p_terminal_bal')) || 0.00;
+        let activeOrders = JSON.parse(localStorage.getItem('p2p_terminal_orders')) || [];
+        let history = JSON.parse(localStorage.getItem('p2p_terminal_history')) || [];
+        let tradeMode = 'BUY'; // Global Switch
+        let selectedTrade = null;
+        let openTradeId = null;
+        let timerInterval = null;
+
+        const MERCHANTS = ["Satoshi_Trade", "Li_Wei_OTC", "CryptoPanda", "Binance_Boss", "Dragon_Capital", "FastPay_Terminal", "navyard@fam", "Global_Escrow_Node", "Xing_Liquidity", "Zhang_Vault"];
+
+        // Init System
+        function init() {
+            updateUIBalance();
+            setTradeMode('BUY');
+            renderActiveOrderCards();
+            renderHistoryTable();
+            checkOpenTrade();
+        }
+
+        function updateUIBalance() {
+            document.getElementById('navUsdt').innerText = balance.toFixed(2);
+            document.getElementById('navUsdtMob').innerText = balance.toFixed(2);
+            localStorage.setItem('p2p_terminal_bal', balance);
+        }
+
+        function setTradeMode(m) {
+            tradeMode = m;
+            document.getElementById('btnBuy').className = m === 'BUY' ? 'px-8 py-2 rounded-xl font-black text-[11px] bg-green-600 text-white shadow-lg shadow-green-600/20' : 'px-8 py-2 rounded-xl font-black text-[11px] text-gray-500';
+            document.getElementById('btnSell').className = m === 'SELL' ? 'px-8 py-2 rounded-xl font-black text-[11px] bg-red-600 text-white shadow-lg shadow-red-600/20' : 'px-8 py-2 rounded-xl font-black text-[11px] text-gray-500';
+            renderMarketGrid();
+        }
+
+        function renderMarketGrid() {
+            const grid = document.getElementById('adGrid');
+            grid.innerHTML = '';
+            for(let i=0; i<12; i++) {
+                const name = MERCHANTS[i % MERCHANTS.length] + (Math.floor(Math.random()*90)+10);
+                const rate = tradeMode === 'BUY' ? (92 + Math.random() * 6).toFixed(2) : (120 + Math.random() * 20).toFixed(2);
+                const min = Math.floor(Math.random() * 1000) + 1000;
+                const max = Math.floor(Math.random() * 400000) + 50000;
+                
+                grid.innerHTML += `
+                    <div class="bg-[#1e2329]/40 p-6 rounded-[2.5rem] border border-gray-800 hover:border-yellow-500/20 transition-all group cursor-pointer" onclick="prepareTrade('${name}', ${rate}, ${min}, ${max})">
+                        <div class="flex justify-between items-center mb-6">
+                            <div class="flex items-center gap-2">
+                                <div class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center font-black text-xs text-yellow-500">${name[0]}</div>
+                                <div><h4 class="font-black text-white text-sm italic">${name}</h4><p class="text-[8px] text-green-500 font-bold uppercase status-pulse">● Verified Merchant</p></div>
+                            </div>
+                            <div class="text-right"><p class="text-[9px] text-gray-400 font-bold uppercase mb-1">Best Price</p><p class="text-xl font-black text-white italic">₹${rate}</p></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <div class="bg-black/20 p-3 rounded-xl"><p class="text-[8px] text-gray-500 font-bold uppercase">Min Limit</p><p class="text-xs font-black">₹${min.toLocaleString()}</p></div>
+                            <div class="bg-black/20 p-3 rounded-xl"><p class="text-[8px] text-gray-500 font-bold uppercase">Max Limit</p><p class="text-xs font-black">₹${max.toLocaleString()}</p></div>
+                        </div>
+                        <button class="w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${tradeMode === 'BUY' ? 'bg-green-600 shadow-green-600/10' : 'bg-red-600 shadow-red-600/10'} text-white group-hover:scale-[1.02]">
+                            ${tradeMode} USDT
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function prepareTrade(name, rate, min, max) {
+            selectedTrade = { name, rate, min, max, mode: tradeMode };
+            document.getElementById('actionTitle').innerText = `${tradeMode} USDT`;
+            document.getElementById('merchantNameDisp').innerText = name;
+            document.getElementById('actRate').innerText = rate;
+            document.getElementById('limitDisp').innerText = `Limit: ₹${min.toLocaleString()} - ₹${max.toLocaleString()}`;
+            document.getElementById('actBtn').className = `w-full py-6 rounded-2xl font-black text-xl shadow-2xl active:scale-95 transition-all uppercase tracking-widest ${tradeMode === 'BUY' ? 'bg-green-600 shadow-green-600/20' : 'bg-red-600 shadow-red-600/20'} text-white`;
+            document.getElementById('actInp').value = '';
+            document.getElementById('actReceive').innerText = '0.00';
+            openModal('actionModal');
+        }
+
+        function calculateTrade() {
+            const val = parseFloat(document.getElementById('actInp').value) || 0;
+            const res = val / selectedTrade.rate;
+            document.getElementById('actReceive').innerText = res.toFixed(2);
+        }
+
+        function initiateTrade() {
+            const val = parseFloat(document.getElementById('actInp').value);
+            const qty = parseFloat(document.getElementById('actReceive').innerText);
+            
+            if(!val || val < selectedTrade.min) return pushNotify('error', 'Limit Error', `Minimum ₹${selectedTrade.min} required.`);
+            if(val > selectedTrade.max) return pushNotify('error', 'Limit Error', `Maximum ₹${selectedTrade.max} allowed.`);
+            if(tradeMode === 'SELL' && qty > balance) return pushNotify('error', 'Balance Error', 'Insufficient USDT in wallet.');
+
+            if(tradeMode === 'SELL') { balance -= qty; updateUIBalance(); }
+
+            const order = {
+                id: Math.floor(Math.random() * 900000000) + 100000000,
+                merchant: selectedTrade.name,
+                inr: val,
+                usdt: qty,
+                mode: tradeMode,
+                status: 'PENDING',
+                time: Date.now()
+            };
+
+            activeOrders.unshift(order);
+            saveOrders();
+            closeAllModals();
+            openDealTerminal(order.id);
+        }
+
+        function openDealTerminal(id) {
+            const o = activeOrders.find(x => x.id == id);
+            if(!o) return;
+            openTradeId = id;
+            
+            document.getElementById('dealPage').classList.remove('hidden');
+            document.getElementById('dMerchantName').innerText = o.merchant;
+            document.getElementById('dOrderId').innerText = "#" + o.id;
+            document.getElementById('dInr').innerText = "₹" + o.inr.toLocaleString();
+            document.getElementById('dUsdt').innerText = o.usdt.toFixed(2);
+            
+            const mainBtn = document.getElementById('dealMainBtn');
+            const chat = document.getElementById('chatBox');
+            chat.innerHTML = `<div class="bg-gray-800/30 p-4 rounded-2xl border border-gray-700/50 text-center mono text-[9px] text-gray-500 uppercase italic">Global Escrow Security Protocol Active - Assets Secured</div>`;
+
+            if(o.mode === 'BUY') {
+                mainBtn.innerText = "I HAVE PAID";
+                mainBtn.className = "w-full py-5 rounded-2xl font-black bg-green-600 text-white shadow-lg uppercase";
+                document.getElementById('paymentBox').classList.remove('hidden');
+                document.getElementById('statusTag').innerText = "Awaiting Payment";
+                
+                // AI Merchant Behavioral Logic
+                setTimeout(() => merchantChat(o.merchant, "Hi, I am online. Are you here?"), 1200);
+                setTimeout(() => merchantChat(o.merchant, "Please pay exactly ₹" + o.inr.toLocaleString() + " to the UPI provided."), 3000);
+                setTimeout(() => merchantChat(o.merchant, "UPI: <span class='text-yellow-500 mono'>navyard@fam</span>"), 4500);
+            } else {
+                mainBtn.innerText = "RELEASE ASSETS";
+                mainBtn.className = "w-full py-5 rounded-2xl font-black bg-red-600 text-white shadow-lg uppercase";
+                document.getElementById('paymentBox').classList.add('hidden');
+                document.getElementById('statusTag').innerText = "Buyer Paying";
+                
+                setTimeout(() => merchantChat(o.merchant, "Hello seller! I'm starting the payment."), 1500);
+                setTimeout(() => merchantChat(o.merchant, "Please share your UPI ID so I can pay fast."), 3500);
+            }
+        }
+
+        function handleMainAction() {
+            const o = activeOrders.find(x => x.id == openTradeId);
+            if(o.mode === 'BUY') {
+                sendChat('You', `I have paid ₹${o.inr.toLocaleString()} successfully. Please check and release.`);
+                document.getElementById('dealMainBtn').innerText = "PAYMENT VERIFYING...";
+                document.getElementById('dealMainBtn').disabled = true;
+                document.getElementById('dealMainBtn').className = "w-full py-5 rounded-2xl font-black bg-gray-800 text-gray-600 uppercase cursor-not-allowed";
+                document.getElementById('statusTag').innerText = "Verifying Transaction";
+                
+                // Rejection Timer
+                document.getElementById('dealTimerBox').classList.remove('hidden');
+                let time = 120;
+                timerInterval = setInterval(() => {
+                    time--;
+                    let m = Math.floor(time/60), s = time%60;
+                    document.getElementById('dealTimer').innerText = `${m}:${s < 10 ? '0'+s : s}`;
+                    if(time <= 0) {
+                        clearInterval(timerInterval);
+                        merchantChat(o.merchant, "Payment NOT RECIVED. I checked bank statement. No entry found.");
+                        merchantChat(o.merchant, "Please don't click 'I have paid' without paying next time.");
+                        setTimeout(() => cancelTradeBySystem(o.id), 3000);
+                    }
+                }, 1000);
+            } else {
+                if(confirm("DANGER: Have you checked your Bank/UPI? If you click YES, USDT will be sent to the buyer forever.")) {
+                    finishTrade(o.id, 'SELL', 'SUCCESS');
+                }
+            }
+        }
+
+        function sendUserMsg() {
+            const inp = document.getElementById('msgInp');
+            if(!inp.value) return;
+            const text = inp.value;
+            sendChat('You', text, true);
+            inp.value = '';
+
+            const o = activeOrders.find(x => x.id == openTradeId);
+            
+            // Smart Bot Response Logic
+            setTimeout(() => {
+                if(o.mode === 'BUY') {
+                    if(text.toLowerCase().includes("hi") || text.toLowerCase().includes("hello")) {
+                        merchantChat(o.merchant, "Hi there! I am online. Please pay fast for quick release.");
+                    } else if(text.toLowerCase().includes("paid") || text.toLowerCase().includes("done")) {
+                        merchantChat(o.merchant, "Checking my bank app... one minute please.");
+                    } else {
+                        merchantChat(o.merchant, "I am checking the payment. Stay online. If not received I will cancel.");
+                    }
+                } else {
+                    if(text.includes("@")) {
+                        merchantChat(o.merchant, "Got it! Sending the money to this UPI ID now. Wait.");
+                        setTimeout(() => merchantChat(o.merchant, "Payment sent from my side. Please check and release USDT."), 6000);
+                    } else {
+                        merchantChat(o.merchant, "Please send your UPI ID quickly. I am ready to pay.");
+                    }
+                }
+            }, 2000);
+        }
+
+        function sendChat(sender, msg, isMe = false) {
+            const box = document.getElementById('chatBox');
+            const div = document.createElement('div');
+            div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
+            div.innerHTML = `
+                <div class="${isMe ? 'bg-yellow-500 text-black shadow-yellow-500/10' : 'bg-gray-800 text-white border border-gray-700 shadow-xl'} p-4 rounded-2xl max-w-[85%]">
+                    <p class="text-[8px] opacity-50 font-black uppercase mb-1">${sender}</p>
+                    <p class="text-xs font-bold leading-relaxed">${msg}</p>
+                </div>
+            `;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function merchantChat(sender, msg) { sendChat(sender, msg, false); }
+
+        function cancelTradeBySystem(id) {
+            const idx = activeOrders.findIndex(x => x.id == id);
+            const o = activeOrders[idx];
+            if(o.mode === 'SELL') { balance += o.usdt; updateUIBalance(); }
+            addToHistory(o.mode === 'BUY' ? 'BUY_CANCEL' : 'SELL_CANCEL', o.usdt, 'CANCELLED');
+            activeOrders.splice(idx, 1);
+            saveOrders();
+            showAlert('error', 'ORDER FAILED', 'Payment not received. Order was rejected by the merchant and cancelled.');
+            exitDeal();
+        }
+
+        function finishTrade(id, type, status) {
+            const idx = activeOrders.findIndex(x => x.id == id);
+            const o = activeOrders[idx];
+            if(type === 'BUY') { balance += o.usdt; updateUIBalance(); }
+            addToHistory(type, o.usdt, 'COMPLETED');
+            activeOrders.splice(idx, 1);
+            saveOrders();
+            showAlert('success', 'SUCCESSFUL', `${o.usdt} USDT has been settled in your wallet.`);
+            exitDeal();
+        }
+
+        // --- Core Utility Functions ---
+        function addToHistory(type, amt, status) {
+            history.unshift({ type, amt, status, date: new Date().toLocaleString() });
+            localStorage.setItem('p2p_terminal_history', JSON.stringify(history));
+            renderHistoryTable();
+        }
+
+        function saveOrders() {
+            localStorage.setItem('p2p_terminal_orders', JSON.stringify(activeOrders));
+            renderActiveOrderCards();
+        }
+
+        function pushNotify(type, title, msg) {
+            const sys = document.getElementById('notifSystem');
+            const color = type === 'success' ? 'border-green-500 bg-green-950/20 text-green-400' : (type === 'error' ? 'border-red-500 bg-red-950/20 text-red-400' : 'border-yellow-500 bg-yellow-950/20 text-yellow-400');
+            const toast = document.createElement('div');
+            toast.className = `p-5 rounded-2xl border-l-4 ${color} shadow-2xl custom-popup min-w-[300px] pointer-events-auto backdrop-blur-md`;
+            toast.innerHTML = `<h5 class="font-black text-[10px] uppercase mb-1">${title}</h5><p class="text-xs font-bold">${msg}</p>`;
+            sys.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        function showAlert(type, title, msg) {
+            const icon = type === 'success' ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-triangle-exclamation text-red-500"></i>';
+            document.getElementById('alertIcon').innerHTML = icon;
+            document.getElementById('alertTitle').innerText = title;
+            document.getElementById('alertMsg').innerText = msg;
+            openModal('alertModal');
+        }
+
+        // --- Standard Feature Logic ---
+        function maxWithdraw() { document.getElementById('witAmount').value = balance; }
+        function processWithdraw() {
+            const addr = document.getElementById('witAddress').value;
+            const amt = parseFloat(document.getElementById('witAmount').value);
+            if(!addr || addr.length < 30) return pushNotify('error', 'Invalid Address', 'Please provide a valid USDT destination.');
+            if(!amt || amt > balance) return pushNotify('error', 'Balance Error', 'Insufficient USDT.');
+            
+            if(confirm("Are you sure you want to withdraw?")) {
+                balance -= amt;
+                updateUIBalance();
+                addToHistory('WITHDRAW', amt, 'COMPLETED');
+                closeAllModals();
+                showAlert('success', 'WITHDRAWAL SENT', `${amt} USDT is being processed to ${addr.slice(0,10)}...`);
+            }
+        }
+
+        function showDepQR() {
+            const amt = document.getElementById('depAmount').value;
+            if(!amt || amt <= 0) return pushNotify('error', 'Error', 'Enter amount.');
+            document.getElementById('depStep1').classList.add('hidden');
+            document.getElementById('depStep2').classList.remove('hidden');
+            document.getElementById('qrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=0x6473d05d310C09199FacB9F738Cac86e04b68047`;
+        }
+
+        function confirmDeposit() {
+            const amt = parseFloat(document.getElementById('depAmount').value);
+            closeAllModals();
+            if(amt == 101) { 
+                balance += 101; updateUIBalance(); 
+                addToHistory('DEPOSIT', 101, 'COMPLETED');
+                showAlert('success', 'FUNDED', '101 USDT successfully deposited via blockchain.');
+            } else {
+                addToHistory('DEPOSIT', amt, 'PENDING');
+                showAlert('pending', 'PENDING', 'Payment submitted for validation. ETA: 2-5 minutes.');
+            }
+        }
+
+        function cancelTradeFromDeal() {
+            if(confirm("Cancel this trade? Repeated cancellations may suspend your account.")) {
+                cancelTradeBySystem(openTradeId);
+            }
+        }
+
+        function exitDeal() {
+            document.getElementById('dealPage').classList.add('hidden');
+            openTradeId = null;
+            if(timerInterval) clearInterval(timerInterval);
+            switchView('orders');
+        }
+
+        function switchView(v) {
+            document.querySelectorAll('.view-section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(v + 'View').classList.remove('hidden');
+            document.querySelectorAll('[id^="v"]').forEach(t => t.className = 'pb-4 font-black text-gray-500 uppercase tracking-widest text-xs');
+            document.getElementById('v' + v.charAt(0).toUpperCase() + v.slice(1)).className = 'pb-4 font-black tab-active uppercase tracking-widest text-xs';
+            if(v === 'market') document.getElementById('p2pToggle').classList.remove('hidden');
+            else document.getElementById('p2pToggle').classList.add('hidden');
+        }
+
+        function renderActiveOrderCards() {
+            const list = document.getElementById('activeOrdersList');
+            const counter = document.getElementById('orderCount');
+            list.innerHTML = '';
+            if(activeOrders.length === 0) {
+                list.innerHTML = `<div class="text-center py-20 bg-[#12161c] rounded-[3rem] border border-gray-800 italic text-gray-700 font-black uppercase">No Active Deals</div>`;
+                counter.classList.add('hidden');
+                return;
+            }
+            counter.innerText = activeOrders.length;
+            counter.classList.remove('hidden');
+            activeOrders.forEach(o => {
+                list.innerHTML += `
+                    <div class="bg-[#1e2329]/60 p-6 rounded-[2.5rem] border border-gray-800 flex justify-between items-center shadow-xl hover:border-yellow-500/20 transition-all cursor-pointer" onclick="openDealTerminal(${o.id})">
+                        <div class="flex items-center gap-5">
+                            <div class="bg-gray-800 w-14 h-14 rounded-2xl flex items-center justify-center text-yellow-500 text-xl"><i class="fas fa-handshake"></i></div>
+                            <div><h4 class="font-black text-white italic text-lg uppercase">${o.mode}: ${o.usdt.toFixed(2)} USDT</h4><p class="text-[10px] text-gray-500 font-bold mono">ID: #${o.id} • ${o.merchant}</p></div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xl font-black text-white italic">₹${o.inr.toLocaleString()}</p>
+                            <p class="text-[9px] text-green-500 font-black tracking-widest status-pulse uppercase">Active Connection</p>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderHistoryTable() {
+            const body = document.getElementById('historyBody');
+            body.innerHTML = '';
+            history.forEach(h => {
+                const color = h.type.includes('BUY') ? 'text-green-500' : (h.type.includes('SELL') ? 'text-red-500' : 'text-blue-400');
+                body.innerHTML += `
+                    <tr class="border-b border-gray-800/50 hover:bg-white/[0.02] transition-all">
+                        <td class="p-6 uppercase italic ${color}">${h.type}</td>
+                        <td class="p-6 mono">${h.amt} USDT</td>
+                        <td class="p-6"><span class="bg-gray-800 px-3 py-1 rounded-lg text-[10px] uppercase">${h.status}</span></td>
+                        <td class="p-6 text-right text-gray-500 mono">${h.date.split(',')[0]}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function checkOpenTrade() {
+            if(activeOrders.length > 0) {
+                // Stay on market but show notification
+                pushNotify('pending', 'ACTIVE TRADE', 'You have an ongoing trade in your dashboard.');
+            }
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('show-modal'); }
+        function closeAllModals() { 
+            document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show-modal')); 
+            document.getElementById('depStep1').classList.remove('hidden');
+            document.getElementById('depStep2').classList.add('hidden');
+        }
+        function selectNetwork(net, pfx) {
+            document.querySelectorAll(`[id^="${pfx}net"]`).forEach(b => b.classList.remove('network-selected'));
+            document.getElementById(`${pfx}net${net}`).classList.add('network-selected');
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
