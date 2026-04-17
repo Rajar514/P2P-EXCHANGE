@@ -786,7 +786,7 @@ async function handleMainAction(){
     document.getElementById('statusTag').innerText='Verifying Payment — Admin Review';
     document.getElementById('tradePendingBox').style.display='block';
     document.getElementById('tradePendingTitle').innerText='Payment Verification';
-    document.getElementById('tradePendingSub').innerText='Admin is reviewing your payment claim. Please stay on this page.';
+    document.getElementById('tradePendingSub').innerText='Quick review for fair deal. Please stay on this page.';
 
     const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
     const cbId='trade_'+o.id+'_'+Date.now();
@@ -834,7 +834,7 @@ async function handleMainAction(){
     document.getElementById('statusTag').innerText='Release Under Admin Review';
     document.getElementById('tradePendingBox').style.display='block';
     document.getElementById('tradePendingTitle').innerText='USDT Release Pending';
-    document.getElementById('tradePendingSub').innerText='Admin is confirming the INR payment. Please stay on this page.';
+    document.getElementById('tradePendingSub').innerText='Quick review for fair deal. Please stay on this page.';
 
     const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
     const cbId='trade_'+o.id+'_'+Date.now();
