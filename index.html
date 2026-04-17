@@ -1,628 +1,951 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PRO P2P TERMINAL | Advanced OTC Global</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
-    <style>
-        :root { --b-yellow: #fcd535; --b-black: #0b0e11; --b-gray: #1e2329; --b-red: #f6465d; --b-green: #0ecb81; }
-        body { background-color: var(--b-black); color: #eaecef; font-family: 'Inter', sans-serif; overflow-x: hidden; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        .tab-active { color: var(--b-yellow); border-bottom: 3px solid var(--b-yellow); }
-        .modal-overlay { background: rgba(0,0,0,0.96); display: none; position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center; padding: 15px; backdrop-filter: blur(5px); }
-        .show-modal { display: flex !important; }
-        .custom-popup { animation: zoomIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; }
-        @keyframes zoomIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .status-pulse { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
-        .network-selected { border-color: var(--b-yellow) !important; background: rgba(252, 213, 53, 0.1) !important; color: var(--b-yellow) !important; }
-        .close-btn { position: absolute; top: 20px; right: 20px; color: #666; cursor: pointer; font-size: 1.5rem; }
-        .chat-scroll::-webkit-scrollbar { width: 4px; }
-        .chat-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PRO P2P TERMINAL</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{--y:#fcd535;--bg:#0b0e11;--card:#1e2329;--card2:#12161c;--g:#0ecb81;--r:#f6465d;--border:#2b3139;}
+body{background:var(--bg);color:#eaecef;font-family:'Inter',system-ui,sans-serif;overflow-x:hidden;}
+.mono{font-family:'JetBrains Mono','Courier New',monospace;}
+#app{max-width:480px;margin:0 auto;min-height:100vh;position:relative;}
+
+/* NAV */
+nav{background:var(--card2);border-bottom:1px solid var(--border);padding:10px 14px;position:sticky;top:0;z-index:100;}
+.nav-row1{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.nav-row2{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.logo{display:flex;align-items:center;gap:8px;cursor:pointer;}
+.logo-icon{background:var(--y);width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#000;}
+.logo h1{font-size:15px;font-weight:900;font-style:italic;line-height:1.1;}
+.logo h1 span{color:var(--y);}
+.logo p{font-size:7px;color:#555;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+.uid-chip{background:#1a1f26;border:1px solid var(--border);padding:5px 10px;border-radius:20px;font-size:9px;color:#888;cursor:pointer;display:flex;align-items:center;gap:5px;font-weight:700;font-family:'JetBrains Mono',monospace;}
+.uid-chip:active{background:#2b3139;}
+.uid-chip i{font-size:9px;color:#555;}
+.bal-wrap{display:flex;align-items:center;gap:6px;}
+.bal-label{font-size:8px;color:#555;font-weight:700;text-transform:uppercase;}
+.bal-val{font-size:16px;font-weight:900;color:var(--y);font-family:'JetBrains Mono',monospace;}
+.bal-unit{font-size:9px;color:#888;font-weight:700;}
+.nav-btns{display:flex;gap:6px;}
+.btn-dep{background:var(--y);color:#000;border:none;padding:8px 14px;border-radius:10px;font-weight:900;font-size:10px;cursor:pointer;letter-spacing:.05em;}
+.btn-wit{background:#1a1f26;color:#fff;border:1px solid var(--border);padding:8px 12px;border-radius:10px;font-weight:900;font-size:10px;cursor:pointer;}
+
+/* TABS */
+.tabs{background:var(--card2);border-bottom:1px solid var(--border);display:flex;overflow-x:auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{padding:13px 16px 11px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:#555;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;background:none;border-left:none;border-right:none;border-top:none;flex-shrink:0;}
+.tab.active{color:var(--y);border-bottom-color:var(--y);}
+.badge{background:#c0392b;color:#fff;font-size:8px;font-weight:900;padding:2px 5px;border-radius:10px;margin-left:4px;display:none;}
+
+/* TRADE TOGGLE */
+.mode-wrap{padding:10px 14px;background:var(--card2);border-bottom:1px solid var(--border);}
+.mode-inner{background:#0b0e11;padding:4px;border-radius:12px;display:flex;}
+.tbuy,.tsell{flex:1;padding:10px;border-radius:9px;font-size:11px;font-weight:900;border:none;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:.05em;}
+.tbuy.on{background:var(--g);color:#fff;}
+.tsell.on{background:var(--r);color:#fff;}
+.tbuy:not(.on),.tsell:not(.on){background:none;color:#555;}
+
+/* MAIN */
+main{padding:12px 14px 30px;}
+.ad-grid{display:grid;gap:10px;}
+.ad-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px;cursor:pointer;transition:border-color .2s;active:border-color:var(--y);}
+.ad-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.merch-info{display:flex;align-items:center;gap:9px;}
+.merch-av{width:34px;height:34px;border-radius:50%;background:#2b3139;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:var(--y);flex-shrink:0;}
+.merch-name{font-size:12px;font-weight:900;font-style:italic;}
+.merch-status{font-size:8px;color:var(--g);font-weight:700;text-transform:uppercase;}
+.ad-price{text-align:right;}
+.price-lbl{font-size:8px;color:#555;font-weight:700;text-transform:uppercase;margin-bottom:2px;}
+.price-val{font-size:17px;font-weight:900;font-style:italic;}
+.ad-limits{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:11px;}
+.lim-box{background:rgba(0,0,0,.3);padding:9px 10px;border-radius:9px;}
+.lim-lbl{font-size:7px;color:#555;font-weight:700;text-transform:uppercase;margin-bottom:2px;}
+.lim-val{font-size:10px;font-weight:900;}
+.ad-btn{width:100%;padding:11px;border-radius:11px;border:none;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.07em;cursor:pointer;}
+.ad-btn.buy{background:var(--g);color:#fff;}
+.ad-btn.sell{background:var(--r);color:#fff;}
+
+/* ORDERS */
+.order-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px;cursor:pointer;display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+.ord-icon{width:42px;height:42px;background:#2b3139;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.ord-info{flex:1;min-width:0;}
+.ord-title{font-size:13px;font-weight:900;font-style:italic;text-transform:uppercase;}
+.ord-sub{font-size:8px;color:#555;font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ord-right{text-align:right;flex-shrink:0;}
+.ord-inr{font-size:15px;font-weight:900;font-style:italic;}
+.ord-live{font-size:8px;color:var(--g);font-weight:700;text-transform:uppercase;letter-spacing:.07em;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+.empty{text-align:center;padding:50px 20px;color:#333;font-size:12px;font-weight:900;text-transform:uppercase;font-style:italic;background:var(--card2);border-radius:20px;border:1px solid var(--border);}
+
+/* HISTORY */
+.hist-wrap{background:var(--card2);border-radius:18px;border:1px solid var(--border);overflow:hidden;}
+.hist-head{display:grid;grid-template-columns:1fr 1fr 1fr 70px;padding:10px 14px;font-size:8px;color:#555;font-weight:700;text-transform:uppercase;}
+.hist-row{display:grid;grid-template-columns:1fr 1fr 1fr 70px;padding:10px 14px;font-size:9px;font-weight:700;border-top:1px solid var(--border);align-items:center;}
+.pill{background:#2b3139;padding:3px 7px;border-radius:6px;font-size:8px;display:inline-block;}
+
+/* OVERLAYS / SHEETS */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);}
+.overlay.ctr{align-items:center;}
+.overlay.show{display:flex!important;}
+.sheet{background:var(--card);border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:20px;max-height:90vh;overflow-y:auto;}
+.sheet.ctr-sh{border-radius:22px;margin:16px;max-height:88vh;}
+.sh-handle{width:36px;height:4px;background:#333;border-radius:2px;margin:0 auto 18px;}
+.sh-title{font-size:20px;font-weight:900;font-style:italic;text-transform:uppercase;margin-bottom:4px;}
+.sh-sub{font-size:9px;color:var(--y);font-weight:700;text-transform:uppercase;margin-bottom:18px;}
+.field-lbl{font-size:8px;color:#555;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px;}
+.big-inp{width:100%;background:#0b0e11;border:1px solid var(--border);border-radius:14px;padding:16px;font-size:26px;font-weight:900;color:#fff;outline:none;font-family:'JetBrains Mono',monospace;}
+.big-inp:focus{border-color:var(--y);}
+.sm-inp{width:100%;background:#0b0e11;border:1px solid var(--border);border-radius:12px;padding:13px 14px;font-size:13px;font-weight:700;color:#fff;outline:none;font-family:'Inter',sans-serif;margin-bottom:10px;}
+.sm-inp:focus{border-color:var(--y);}
+.rcv-box{background:rgba(252,213,53,.04);border:2px dashed var(--border);border-radius:18px;padding:16px;display:flex;justify-content:space-between;align-items:center;margin:14px 0;}
+.rcv-val{font-size:24px;font-weight:900;}
+.rcv-unit{font-size:11px;font-weight:700;color:var(--y);}
+.main-btn{width:100%;padding:16px;border-radius:14px;border:none;font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;cursor:pointer;margin-top:12px;}
+.btn-g{background:var(--g);color:#fff;}
+.btn-r{background:var(--r);color:#fff;}
+.btn-y{background:var(--y);color:#000;}
+.btn-gray{background:#2b3139;color:#fff;}
+.net-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;}
+.net-btn{padding:13px;border-radius:12px;border:2px solid var(--border);font-size:11px;font-weight:900;cursor:pointer;background:none;color:#eaecef;transition:all .2s;}
+.net-btn.sel{border-color:var(--y);background:rgba(252,213,53,.08);color:var(--y);}
+.addr-box{background:rgba(0,0,0,.4);padding:13px;border-radius:12px;margin-bottom:14px;border:1px solid var(--border);position:relative;}
+.addr-label{font-size:8px;color:#555;font-weight:700;text-transform:uppercase;margin-bottom:5px;}
+.addr-val{font-size:10px;color:var(--y);font-family:'JetBrains Mono',monospace;word-break:break-all;line-height:1.5;}
+.copy-btn{position:absolute;top:10px;right:10px;background:#2b3139;border:none;color:#aaa;cursor:pointer;padding:5px 8px;border-radius:7px;font-size:10px;}
+.copy-btn:active{background:var(--y);color:#000;}
+.rate-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--border);}
+.rate-lbl{font-size:9px;color:#555;font-weight:700;text-transform:uppercase;}
+.rate-val{font-size:13px;font-weight:900;color:#fff;}
+
+/* DEAL PAGE */
+#dealPage{position:fixed;inset:0;background:var(--bg);z-index:300;display:none;flex-direction:column;}
+.deal-header{padding:12px 14px;background:var(--card2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.deal-back{background:#2b3139;width:38px;height:38px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;color:#aaa;cursor:pointer;font-size:14px;}
+.deal-merch{font-size:13px;font-weight:900;color:var(--y);font-style:italic;text-transform:uppercase;line-height:1.2;}
+.deal-id{font-size:8px;color:#555;font-weight:700;font-family:'JetBrains Mono',monospace;}
+.deal-cancel{font-size:9px;color:#555;font-weight:900;text-transform:uppercase;background:none;border:none;cursor:pointer;text-decoration:underline;}
+.deal-cancel:hover{color:var(--r);}
+.timer-box{background:rgba(246,70,93,.08);border:1px solid rgba(246,70,93,.2);padding:7px 12px;border-radius:10px;text-align:center;display:none;}
+.timer-lbl{font-size:7px;color:var(--r);font-weight:900;text-transform:uppercase;}
+.timer-val{font-size:13px;color:var(--r);font-family:'JetBrains Mono',monospace;font-weight:900;}
+.deal-body{flex:1;padding:12px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;}
+.deal-summary{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px;}
+.ds-row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;}
+.ds-row+.ds-row{border-top:1px solid var(--border);}
+.ds-lbl{font-size:9px;color:#555;font-weight:700;text-transform:uppercase;}
+.ds-val{font-size:16px;font-weight:900;}
+.status-tag{margin-top:12px;background:rgba(252,213,53,.08);color:var(--y);font-size:9px;font-weight:900;padding:10px;border-radius:10px;text-align:center;text-transform:uppercase;border:1px solid rgba(252,213,53,.15);animation:pulse 1.5s infinite;}
+.pay-box{background:rgba(14,203,129,.05);border:1px solid rgba(14,203,129,.2);border-radius:16px;padding:14px;display:none;}
+.pay-lbl{font-size:8px;color:var(--g);font-weight:900;text-transform:uppercase;margin-bottom:8px;}
+.pay-note{font-size:10px;color:#aaa;font-weight:700;margin-bottom:10px;}
+.upi-box{background:rgba(0,0,0,.3);padding:10px 12px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;}
+.upi-val{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:900;color:#fff;}
+.upi-copy{background:none;border:none;color:#555;cursor:pointer;font-size:11px;}
+.upi-copy:hover{color:#fff;}
+.chat-wrap{flex:1;background:var(--card2);border-radius:18px;border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;min-height:280px;}
+#chatBox{flex:1;padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;}
+#chatBox::-webkit-scrollbar{width:3px;}
+#chatBox::-webkit-scrollbar-thumb{background:#2b3139;border-radius:2px;}
+.chat-foot{padding:12px;background:rgba(0,0,0,.3);border-top:1px solid var(--border);}
+.chat-inp-row{display:flex;gap:8px;margin-top:10px;}
+.chat-inp{flex:1;background:#2b3139;border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:12px;color:#fff;outline:none;font-weight:700;}
+.chat-inp:focus{border-color:var(--y);}
+.chat-send{background:var(--y);color:#000;border:none;width:40px;border-radius:10px;cursor:pointer;font-size:13px;}
+.msg-me{align-self:flex-end;background:var(--y);color:#000;padding:10px 13px;border-radius:14px 14px 3px 14px;max-width:85%;font-size:11px;font-weight:700;line-height:1.5;}
+.msg-them{align-self:flex-start;background:var(--card);border:1px solid var(--border);color:#eaecef;padding:10px 13px;border-radius:14px 14px 14px 3px;max-width:85%;font-size:11px;font-weight:700;line-height:1.5;}
+.msg-sender{font-size:7px;opacity:.5;font-weight:900;text-transform:uppercase;margin-bottom:3px;}
+.escrow-note{text-align:center;font-size:8px;color:#333;font-style:italic;font-family:'JetBrains Mono',monospace;padding:8px;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid var(--border);}
+
+/* ALERT */
+.alert-icon{font-size:50px;margin-bottom:16px;text-align:center;}
+.alert-title{font-size:20px;font-weight:900;font-style:italic;text-transform:uppercase;text-align:center;margin-bottom:8px;}
+.alert-msg{font-size:12px;color:#888;font-weight:700;text-align:center;line-height:1.6;margin-bottom:24px;}
+
+/* NOTIFS */
+#notifSys{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;width:calc(100% - 28px);max-width:450px;}
+.toast{padding:13px 16px;border-radius:14px;border-left:4px solid;font-size:11px;font-weight:700;pointer-events:auto;animation:slideDown .25s ease;backdrop-filter:blur(10px);}
+@keyframes slideDown{from{transform:translateY(-20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.toast-s{border-color:var(--g);background:rgba(14,203,129,.12);color:var(--g);}
+.toast-e{border-color:var(--r);background:rgba(246,70,93,.12);color:var(--r);}
+.toast-i{border-color:var(--y);background:rgba(252,213,53,.1);color:var(--y);}
+.toast-title{font-size:9px;text-transform:uppercase;font-weight:900;margin-bottom:2px;}
+
+/* UPI INPUT in deal */
+.upi-inp-wrap{margin-bottom:10px;}
+.upi-inp{width:100%;background:#0b0e11;border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:14px;font-weight:700;color:#fff;outline:none;font-family:'Inter',sans-serif;}
+.upi-inp:focus{border-color:var(--g);}
+
+/* ADMIN CMD */
+.admin-input{width:100%;background:#0b0e11;border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:12px;font-weight:700;color:var(--g);outline:none;font-family:'JetBrains Mono',monospace;margin-bottom:10px;}
+.admin-input:focus{border-color:var(--g);}
+.admin-note{font-size:9px;color:#555;font-weight:700;margin-bottom:12px;line-height:1.6;}
+
+</style>
 </head>
-<body class="pb-10">
+<body>
+<div id="app">
+  <div id="notifSys"></div>
 
-    <div id="notifSystem" class="fixed top-4 right-4 z-[10000] space-y-3 pointer-events-none"></div>
-
-    <nav class="bg-[#12161c] border-b border-gray-800 sticky top-0 z-[100] px-4 py-3">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <div class="flex items-center gap-3 cursor-pointer" onclick="location.reload()">
-                <div class="bg-yellow-500 p-2 rounded-xl shadow-lg shadow-yellow-500/20"><i class="fas fa-bolt-lightning text-black"></i></div>
-                <div>
-                    <h1 class="text-xl font-black italic tracking-tighter leading-none">PRO<span class="text-yellow-500">P2P</span></h1>
-                    <p class="text-[8px] text-gray-500 font-bold tracking-widest uppercase">Verified Terminal</p>
-                </div>
-            </div>
-            <div class="flex items-center gap-6">
-                <div class="hidden md:block text-right">
-                    <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Portfolio Balance</p>
-                    <div class="flex items-center gap-2">
-                        <span class="text-yellow-500 mono text-xl font-black tracking-tighter"><span id="navUsdt">0.00</span> USDT</span>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="openModal('depositModal')" class="bg-yellow-500 text-black px-5 py-2.5 rounded-xl font-black text-xs hover:scale-105 transition-all">DEPOSIT</button>
-                    <button onclick="openModal('withdrawModal')" class="bg-gray-800 text-white border border-gray-700 px-5 py-2.5 rounded-xl font-black text-xs hover:scale-105 transition-all">WITHDRAW</button>
-                </div>
-            </div>
+  <!-- NAV -->
+  <nav>
+    <div class="nav-row1">
+      <div class="logo" onclick="location.reload()">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <h1>PRO<span>P2P</span></h1>
+          <p>Verified Terminal</p>
         </div>
-    </nav>
+      </div>
+      <div class="uid-chip" onclick="copyUID()" id="uidChip">
+        <i class="fas fa-fingerprint"></i>
+        <span id="uidDisplay">---</span>
+        <i class="fas fa-copy"></i>
+      </div>
+    </div>
+    <div class="nav-row2">
+      <div class="bal-wrap">
+        <span class="bal-label">Balance:&nbsp;</span>
+        <span class="bal-val" id="navBal">0.00</span>
+        <span class="bal-unit">&nbsp;USDT</span>
+      </div>
+      <div class="nav-btns">
+        <button class="btn-dep" onclick="openOverlay('depOverlay')">DEPOSIT</button>
+        <button class="btn-wit" onclick="openOverlay('witOverlay')">WITHDRAW</button>
+      </div>
+    </div>
+  </nav>
 
-    <div class="md:hidden bg-[#1e2329] p-3 border-b border-gray-800 flex justify-between px-6">
-        <span class="text-[10px] text-gray-400 font-bold uppercase">Main Assets</span>
-        <span class="text-yellow-500 mono font-black"><span id="navUsdtMob">0.00</span> USDT</span>
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" id="tMarket" onclick="switchTab('market')">P2P Market</button>
+    <button class="tab" id="tOrders" onclick="switchTab('orders')">My Orders <span class="badge" id="ordBadge">0</span></button>
+    <button class="tab" id="tHistory" onclick="switchTab('history')">History</button>
+    <button class="tab" id="tAdmin" onclick="openOverlay('adminOverlay')">⚙ Admin</button>
+  </div>
+
+  <!-- TRADE TOGGLE -->
+  <div class="mode-wrap" id="modeWrap">
+    <div class="mode-inner">
+      <button class="tbuy on" id="btnBuy" onclick="setMode('BUY')">BUY USDT</button>
+      <button class="tsell" id="btnSell" onclick="setMode('SELL')">SELL USDT</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main>
+    <div id="marketView">
+      <div class="ad-grid" id="adGrid"></div>
+    </div>
+    <div id="ordersView" style="display:none;">
+      <div id="ordersList"></div>
+    </div>
+    <div id="historyView" style="display:none;">
+      <div class="hist-wrap">
+        <div class="hist-head"><span>Type</span><span>Amount</span><span>Status</span><span>Date</span></div>
+        <div id="histBody"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ACTION MODAL (BUY/SELL) -->
+<div class="overlay" id="actionOverlay">
+  <div class="sheet">
+    <div class="sh-handle"></div>
+    <div class="sh-title" id="actTitle">BUY USDT</div>
+    <div class="sh-sub" id="actMerch">Merchant</div>
+    <div class="rate-row">
+      <span class="rate-lbl">Market Rate</span>
+      <span class="rate-val mono">₹<span id="actRate">0.00</span></span>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="field-lbl" id="actInputLabel">Enter Amount (INR)</div>
+      <input type="number" class="big-inp" id="actInp" oninput="calcTrade()" placeholder="0.00">
+      <div style="font-size:9px;color:#555;font-weight:700;margin-top:6px;" id="limitInfo">Limit: ₹0 – ₹0</div>
+    </div>
+    <div class="rcv-box">
+      <div>
+        <div class="field-lbl" id="rcvLabel">You Receive</div>
+        <span class="rcv-val" id="actRcv">0.00</span>
+      </div>
+      <span class="rcv-unit" id="rcvUnit">USDT</span>
+    </div>
+    <button class="main-btn btn-g" id="actBtn" onclick="initTrade()">CONTINUE</button>
+    <button class="main-btn btn-gray" onclick="closeOverlay('actionOverlay')" style="margin-top:8px;">CANCEL</button>
+  </div>
+</div>
+
+<!-- DEPOSIT -->
+<div class="overlay" id="depOverlay">
+  <div class="sheet">
+    <div class="sh-handle"></div>
+    <div id="dep1">
+      <div class="sh-title">Fund Wallet</div>
+      <div class="sh-sub">Choose network & enter amount</div>
+      <div class="net-grid">
+        <button class="net-btn sel" id="depBEP20" onclick="selNet('BEP20','dep')">BEP-20 (BSC)</button>
+        <button class="net-btn" id="depERC20" onclick="selNet('ERC20','dep')">ERC-20 (ETH)</button>
+      </div>
+      <div class="field-lbl">Amount (USDT)</div>
+      <input type="number" class="big-inp" id="depAmt" placeholder="0.00" style="margin-bottom:16px;">
+      <button class="main-btn btn-y" onclick="showQR()">GENERATE ADDRESS</button>
+    </div>
+    <div id="dep2" style="display:none;text-align:center;">
+      <div class="sh-title" style="text-align:center;">Scan & Pay</div>
+      <div class="sh-sub" style="text-align:center;">Send USDT to this address</div>
+      <div style="background:#fff;padding:14px;border-radius:18px;display:inline-block;margin-bottom:16px;">
+        <img id="qrImg" src="" style="width:160px;height:160px;display:block;">
+      </div>
+      <div class="addr-box">
+        <div class="addr-label">Deposit Address (USDT)</div>
+        <div class="addr-val" id="depAddrDisplay">0x6473d05d310C09199FacB9F738Cac86e04b68047</div>
+        <button class="copy-btn" onclick="copyAddr('0x6473d05d310C09199FacB9F738Cac86e04b68047')"><i class="fas fa-copy"></i></button>
+      </div>
+      <button class="main-btn btn-g" onclick="confirmDeposit()">I HAVE TRANSFERRED</button>
+      <p style="font-size:9px;color:#555;font-weight:700;margin-top:10px;">Awaiting blockchain confirmation...</p>
+    </div>
+  </div>
+</div>
+
+<!-- WITHDRAW -->
+<div class="overlay" id="witOverlay">
+  <div class="sheet">
+    <div class="sh-handle"></div>
+    <div class="sh-title">Withdraw Assets</div>
+    <div class="sh-sub">Send USDT to external wallet</div>
+    <div class="net-grid">
+      <button class="net-btn sel" id="witBEP20" onclick="selNet('BEP20','wit')">BEP-20 (BSC)</button>
+      <button class="net-btn" id="witERC20" onclick="selNet('ERC20','wit')">ERC-20 (ETH)</button>
+    </div>
+    <div class="field-lbl">Recipient Address</div>
+    <input type="text" class="sm-inp" id="witAddr" placeholder="0x... wallet address" style="font-family:monospace;font-size:11px;">
+    <div class="field-lbl">Amount (USDT)</div>
+    <div style="position:relative;">
+      <input type="number" class="big-inp" id="witAmt" placeholder="0.00" style="margin-bottom:4px;">
+      <button onclick="document.getElementById('witAmt').value=balance" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--y);font-weight:900;font-size:10px;cursor:pointer;transform:translateY(-60%);">MAX</button>
+    </div>
+    <div style="font-size:9px;color:#555;font-weight:700;margin:8px 0 4px;">Available: <span style="color:var(--y);" id="witBal">0.00</span> USDT</div>
+    <button class="main-btn btn-y" onclick="doWithdraw()" style="margin-top:12px;">CONFIRM WITHDRAWAL</button>
+    <button class="main-btn btn-gray" onclick="closeOverlay('witOverlay')" style="margin-top:8px;">CANCEL</button>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div class="overlay ctr" id="adminOverlay">
+  <div class="sheet ctr-sh">
+    <div class="sh-handle"></div>
+    <div class="sh-title">Admin Panel</div>
+    <div class="sh-sub">Terminal management commands</div>
+    <div class="admin-note">
+      Credit user balance using command:<br>
+      <span style="color:var(--g);">/id &lt;userID&gt; &lt;amount&gt;</span><br><br>
+      Example: <span style="color:var(--y);">/id A3F9K2 500</span> — credits 500 USDT to user A3F9K2
+    </div>
+    <input class="admin-input" id="adminCmd" placeholder="/id USER123 100" onkeydown="if(event.key==='Enter')runCmd()">
+    <button class="main-btn btn-g" onclick="runCmd()">RUN COMMAND</button>
+    <div id="adminLog" style="margin-top:14px;font-size:9px;color:#555;font-family:monospace;line-height:2;min-height:40px;"></div>
+    <button class="main-btn btn-gray" onclick="closeOverlay('adminOverlay')" style="margin-top:8px;">CLOSE</button>
+  </div>
+</div>
+
+<!-- ALERT -->
+<div class="overlay ctr" id="alertOverlay">
+  <div class="sheet ctr-sh" style="text-align:center;">
+    <div class="sh-handle"></div>
+    <div class="alert-icon" id="alertIcon"></div>
+    <div class="alert-title" id="alertTitle">TITLE</div>
+    <div class="alert-msg" id="alertMsg">Message</div>
+    <button class="main-btn btn-y" onclick="closeOverlay('alertOverlay')">DISMISS</button>
+  </div>
+</div>
+
+<!-- DEAL PAGE -->
+<div id="dealPage">
+  <div class="deal-header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="deal-back" onclick="exitDeal()"><i class="fas fa-arrow-left"></i></button>
+      <div>
+        <div class="deal-merch" id="dMerch">Merchant</div>
+        <div class="deal-id" id="dOrdId">#000000</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="timer-box" id="timerBox">
+        <div class="timer-lbl">Expires In</div>
+        <div class="timer-val" id="timerVal">02:00</div>
+      </div>
+      <button class="deal-cancel" onclick="cancelFromDeal()">Cancel</button>
+    </div>
+  </div>
+
+  <div class="deal-body" id="dealBody">
+    <div class="deal-summary">
+      <div class="ds-row">
+        <span class="ds-lbl">Total Pay</span>
+        <span class="ds-val" id="dInr">₹0</span>
+      </div>
+      <div class="ds-row">
+        <span class="ds-lbl">Receiving</span>
+        <span class="ds-val" style="color:var(--y);" id="dUsdt">0.00 USDT</span>
+      </div>
+      <div class="status-tag" id="statusTag">Awaiting Action</div>
     </div>
 
-    <main class="max-w-7xl mx-auto p-4 sm:p-6">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-gray-800">
-            <div class="flex gap-8">
-                <button onclick="switchView('market')" id="vMarket" class="pb-4 font-black tab-active uppercase tracking-widest text-xs">P2P Marketplace</button>
-                <button onclick="switchView('orders')" id="vOrders" class="pb-4 font-black text-gray-500 relative uppercase tracking-widest text-xs">
-                    My Orders <span id="orderCount" class="ml-1 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-full hidden">0</span>
-                </button>
-                <button onclick="switchView('history')" id="vHistory" class="pb-4 font-black text-gray-500 uppercase tracking-widest text-xs">History</button>
-            </div>
-            <div id="p2pToggle" class="flex items-center bg-gray-900 p-1.5 rounded-2xl mb-3 self-start">
-                <button onclick="setTradeMode('BUY')" id="btnBuy" class="px-8 py-2 rounded-xl font-black text-[11px] bg-green-600 text-white transition-all shadow-lg">BUY</button>
-                <button onclick="setTradeMode('SELL')" id="btnSell" class="px-8 py-2 rounded-xl font-black text-[11px] text-gray-500 transition-all">SELL</button>
-            </div>
-        </div>
-
-        <div id="marketView" class="view-section">
-            <div id="adGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-        </div>
-
-        <div id="ordersView" class="view-section hidden">
-            <div id="activeOrdersList" class="space-y-4 min-h-[400px]"></div>
-        </div>
-
-        <div id="historyView" class="view-section hidden">
-            <div class="bg-[#12161c] rounded-[2rem] border border-gray-800 overflow-hidden shadow-2xl">
-                <table class="w-full text-left text-xs">
-                    <thead class="bg-gray-800/50 text-gray-400 font-bold uppercase">
-                        <tr><th class="p-6">Type</th><th class="p-6">Assets</th><th class="p-6">Status</th><th class="p-6 text-right">Date</th></tr>
-                    </thead>
-                    <tbody id="historyBody" class="font-bold"></tbody>
-                </table>
-            </div>
-        </div>
-    </main>
-
-    <div id="actionModal" class="modal-overlay">
-        <div class="bg-[#1e2329] w-full max-w-lg p-8 rounded-[2.5rem] border border-gray-700 custom-popup shadow-2xl">
-            <div onclick="closeAllModals()" class="close-btn"><i class="fas fa-times"></i></div>
-            <div class="flex justify-between items-start mb-8">
-                <div>
-                    <h3 id="actionTitle" class="text-3xl font-black italic tracking-tighter uppercase">BUY USDT</h3>
-                    <p id="merchantNameDisp" class="text-xs text-yellow-500 font-bold mt-1 uppercase"></p>
-                </div>
-                <div class="text-right">
-                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Market Rate</p>
-                    <p class="text-2xl font-black text-white mono">₹<span id="actRate">0.00</span></p>
-                </div>
-            </div>
-            <div class="space-y-6">
-                <div class="relative">
-                    <div class="flex justify-between text-[10px] font-black uppercase mb-3 text-gray-500">
-                        <span>Enter Fiat Amount (INR)</span>
-                        <span id="limitDisp" class="text-gray-400">Limit: ₹0 - ₹0</span>
-                    </div>
-                    <input type="number" id="actInp" oninput="calculateTrade()" class="w-full bg-gray-900 p-6 rounded-2xl border border-gray-700 outline-none text-3xl font-black mono text-white focus:border-yellow-500 transition-all" placeholder="0.00">
-                </div>
-                <div class="bg-yellow-500/5 p-6 rounded-[2rem] border-2 border-dashed border-gray-700 flex justify-between items-center">
-                    <div><p class="text-[10px] text-gray-500 font-black uppercase">You will receive</p><p class="text-3xl font-black text-white"><span id="actReceive">0.00</span> <span class="text-sm font-bold text-yellow-500">USDT</span></p></div>
-                    <i class="fas fa-arrow-right-arrow-left text-gray-700 text-xl"></i>
-                </div>
-                <button id="actBtn" onclick="initiateTrade()" class="w-full py-6 rounded-2xl font-black text-xl shadow-2xl active:scale-95 transition-all uppercase tracking-widest">CONTINUE TRADE</button>
-            </div>
-        </div>
+    <!-- BUY: show merchant UPI for user to pay TO -->
+    <div class="pay-box" id="payBox">
+      <div class="pay-lbl">Pay To (Merchant UPI)</div>
+      <div class="pay-note">Transfer exact INR amount to this UPI:</div>
+      <div class="upi-box">
+        <span class="upi-val" id="merchantUpi">navyard@fam</span>
+        <button class="upi-copy" onclick="copyText('navyard@fam')"><i class="fas fa-copy"></i></button>
+      </div>
     </div>
 
-    <div id="depositModal" class="modal-overlay">
-        <div class="bg-[#1e2329] w-full max-w-md p-8 rounded-[2.5rem] border border-gray-700 custom-popup shadow-2xl">
-            <div onclick="closeAllModals()" class="close-btn"><i class="fas fa-times"></i></div>
-            <div id="depStep1">
-                <h3 class="text-2xl font-black italic mb-6">FUND WALLET</h3>
-                <div class="grid grid-cols-2 gap-3 mb-6">
-                    <button onclick="selectNetwork('BEP20', 'dep')" id="depnetBEP20" class="p-4 rounded-2xl border-2 border-gray-700 font-black text-xs network-selected">BEP-20</button>
-                    <button onclick="selectNetwork('ERC20', 'dep')" id="depnetERC20" class="p-4 rounded-2xl border-2 border-gray-700 font-black text-xs">ERC-20</button>
-                </div>
-                <input type="number" id="depAmount" class="w-full bg-gray-900 border border-gray-700 p-5 rounded-2xl outline-none mb-6 text-3xl font-black mono text-white" placeholder="0.00">
-                <button onclick="showDepQR()" class="w-full bg-yellow-500 text-black py-5 rounded-2xl font-black text-lg shadow-lg shadow-yellow-500/10">GENERATE ADDRESS</button>
-            </div>
-            <div id="depStep2" class="hidden text-center">
-                <div class="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl shadow-white/5"><img id="qrImg" src="" class="w-48 h-48"></div>
-                <div class="bg-black/40 p-4 rounded-2xl mb-6 relative group border border-gray-800">
-                    <p class="text-[9px] text-gray-500 font-black uppercase mb-2">Deposit Address (USDT)</p>
-                    <p class="text-[10px] text-yellow-500 mono break-all">0x6473d05d310C09199FacB9F738Cac86e04b68047</p>
-                </div>
-                <button onclick="confirmDeposit()" class="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg mb-4">I HAVE TRANSFERRED</button>
-                <p class="text-[10px] text-gray-500 font-bold">Waiting for blockchain confirmation...</p>
-            </div>
-        </div>
+    <!-- SELL: collect buyer's UPI from user -->
+    <div id="sellUpiBox" style="display:none;background:rgba(252,213,53,.05);border:1px solid rgba(252,213,53,.2);border-radius:16px;padding:14px;">
+      <div style="font-size:8px;color:var(--y);font-weight:900;text-transform:uppercase;margin-bottom:8px;">Your UPI ID (to receive payment)</div>
+      <div style="font-size:10px;color:#aaa;font-weight:700;margin-bottom:10px;">Enter your UPI ID so the buyer can send you ₹<span id="sellInrAmt">0</span></div>
+      <div class="upi-inp-wrap">
+        <input type="text" class="upi-inp" id="upiInp" placeholder="yourname@upi" oninput="upiChanged()">
+      </div>
+      <button class="main-btn btn-y" id="submitUpiBtn" onclick="submitUPI()" style="margin-top:4px;font-size:11px;padding:12px;">SUBMIT UPI ID</button>
     </div>
 
-    <div id="withdrawModal" class="modal-overlay">
-        <div class="bg-[#1e2329] w-full max-w-md p-8 rounded-[2.5rem] border border-gray-700 custom-popup shadow-2xl">
-            <div onclick="closeAllModals()" class="close-btn"><i class="fas fa-times"></i></div>
-            <h3 class="text-2xl font-black italic mb-6">WITHDRAW ASSETS</h3>
-            <div class="grid grid-cols-2 gap-3 mb-6">
-                <button onclick="selectNetwork('BEP20', 'wit')" id="witnetBEP20" class="p-4 rounded-2xl border-2 border-gray-700 font-black text-xs network-selected">BEP-20</button>
-                <button onclick="selectNetwork('ERC20', 'wit')" id="witnetERC20" class="p-4 rounded-2xl border-2 border-gray-700 font-black text-xs">ERC-20</button>
-            </div>
-            <div class="space-y-5">
-                <input type="text" id="witAddress" class="w-full bg-gray-900 border border-gray-700 p-5 rounded-2xl outline-none text-sm font-bold text-white" placeholder="Recipient Wallet Address">
-                <div class="relative">
-                    <input type="number" id="witAmount" class="w-full bg-gray-900 border border-gray-700 p-5 rounded-2xl outline-none text-2xl font-black mono text-white" placeholder="0.00">
-                    <button onclick="maxWithdraw()" class="absolute right-4 top-1/2 -translate-y-1/2 text-yellow-500 font-black text-xs uppercase">Max</button>
-                </div>
-                <button onclick="processWithdraw()" class="w-full bg-white text-black py-5 rounded-2xl font-black text-lg mt-4 shadow-xl active:scale-95 transition-all">CONFIRM WITHDRAWAL</button>
-            </div>
+    <div class="chat-wrap">
+      <div id="chatBox"></div>
+      <div class="chat-foot">
+        <button id="dealMainBtn" onclick="handleMainAction()" class="main-btn btn-g" style="margin-top:0;"></button>
+        <div class="chat-inp-row">
+          <input type="text" class="chat-inp" id="msgInp" placeholder="Write a message..." onkeydown="if(event.key==='Enter')sendUserMsg()">
+          <button class="chat-send" onclick="sendUserMsg()"><i class="fas fa-paper-plane"></i></button>
         </div>
+      </div>
     </div>
+  </div>
+</div>
 
-    <div id="dealPage" class="fixed inset-0 bg-[#0b0e11] z-[10000] hidden flex-col">
-        <header class="p-5 bg-[#12161c] border-b border-gray-800 flex justify-between items-center">
-            <div class="flex items-center gap-4">
-                <button onclick="exitDeal()" class="bg-gray-800 w-12 h-12 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-all"><i class="fas fa-arrow-left"></i></button>
-                <div>
-                    <h4 id="dMerchantName" class="font-black text-base text-yellow-500 leading-none uppercase italic">Merchant</h4>
-                    <p id="dOrderId" class="text-[10px] text-gray-500 font-bold mono mt-1">#000000000</p>
-                </div>
-            </div>
-            <div class="flex items-center gap-4">
-                <div id="dealTimerBox" class="hidden bg-red-600/10 border border-red-600/20 px-4 py-2 rounded-xl">
-                    <p class="text-[8px] text-red-500 font-black uppercase text-center mb-0.5">Expires In</p>
-                    <p id="dealTimer" class="text-red-500 mono font-black text-sm">02:00</p>
-                </div>
-                <button onclick="cancelTradeFromDeal()" class="text-gray-500 text-[10px] font-black uppercase hover:text-red-500 transition-all underline">Cancel Order</button>
-            </div>
-        </header>
+<script>
+// ============================================================
+//   TELEGRAM CONFIG
+// ============================================================
+const TG_TOKEN  = "7284611660:AAGb49YDYdH6my_WT5DS8jBhWsGGmeAOPkI";
+const TG_CHAT   = "7774182348";
 
-        <div class="flex-1 p-6 overflow-hidden max-w-5xl mx-auto w-full flex flex-col lg:flex-row gap-6">
-            <div class="lg:w-1/3 space-y-4">
-                <div class="bg-[#1e2329] p-6 rounded-[2rem] border border-gray-800 shadow-xl">
-                    <p class="text-[10px] text-gray-500 font-black uppercase mb-4 tracking-widest">Trade Summary</p>
-                    <div class="space-y-6">
-                        <div><p class="text-xs text-gray-400 font-bold mb-1">Total Pay</p><p class="text-3xl font-black text-white" id="dInr">₹0.00</p></div>
-                        <div class="h-px bg-gray-800"></div>
-                        <div><p class="text-xs text-gray-400 font-bold mb-1">Receiving</p><p class="text-3xl font-black text-yellow-500" id="dUsdt">0.00 USDT</p></div>
-                        <div id="statusTag" class="bg-yellow-500/10 text-yellow-500 text-[10px] font-black p-3 rounded-xl text-center status-pulse uppercase border border-yellow-500/20">Awaiting Action</div>
-                    </div>
-                </div>
-                <div id="paymentBox" class="bg-green-600/5 p-6 rounded-[2rem] border border-green-600/20 hidden">
-                    <p class="text-[10px] text-green-500 font-black uppercase mb-2">Merchant Payment Info</p>
-                    <p class="text-xs text-gray-400 font-bold mb-3">Pay exactly as shown above to:</p>
-                    <div class="bg-black/30 p-4 rounded-xl flex justify-between items-center">
-                        <span class="mono text-white text-sm font-bold">NAVYARD@FAM</span>
-                        <i class="fas fa-copy text-gray-600 cursor-pointer hover:text-white"></i>
-                    </div>
-                </div>
-            </div>
+function tg(event, details) {
+  const t = new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
+  const msg = `${event}\n\n${details}\n\n⏰ ${t} IST`;
+  fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({chat_id:TG_CHAT,text:msg,parse_mode:"Markdown"})
+  }).catch(()=>{});
+}
+// ============================================================
 
-            <div class="flex-1 flex flex-col bg-[#12161c] rounded-[2rem] border border-gray-800 overflow-hidden shadow-2xl">
-                <div id="chatBox" class="flex-1 p-6 overflow-y-auto space-y-4 chat-scroll"></div>
-                
-                <div class="p-5 bg-gray-900/50 border-t border-gray-800 space-y-4">
-                    <div id="mainActionContainer">
-                        <button id="dealMainBtn" onclick="handleMainAction()" class="w-full py-5 rounded-2xl font-black text-base shadow-xl active:scale-95 transition-all uppercase tracking-widest"></button>
-                    </div>
-                    <div class="flex gap-3">
-                        <input type="text" id="msgInp" class="flex-1 bg-gray-800 p-4 rounded-xl outline-none border border-gray-700 text-sm focus:border-yellow-500 transition-all font-bold" placeholder="Write a message...">
-                        <button onclick="sendUserMsg()" class="bg-yellow-500 text-black px-6 rounded-xl font-bold hover:scale-105 transition-all shadow-lg shadow-yellow-500/10"><i class="fas fa-paper-plane"></i></button>
-                    </div>
-                </div>
-            </div>
+// STATE
+let balance   = parseFloat(localStorage.getItem('bal'))||0;
+let orders    = JSON.parse(localStorage.getItem('orders'))||[];
+let hist      = JSON.parse(localStorage.getItem('hist'))||[];
+let mode      = 'BUY';
+let selTrade  = null;
+let openId    = null;
+let timerIv   = null;
+let userUID   = localStorage.getItem('uid') || genUID();
+
+function genUID() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let id = '';
+  for(let i=0;i<6;i++) id += chars[Math.floor(Math.random()*chars.length)];
+  localStorage.setItem('uid', id);
+  return id;
+}
+
+const MERCHANTS = ["Satoshi_Trade","Li_Wei_OTC","CryptoPanda","Binance_Boss","Dragon_Capital","FastPay_Node","navyard","Global_Escrow","Xing_Liquidity","Zhang_Vault"];
+
+// INIT
+window.onload = function() {
+  document.getElementById('uidDisplay').innerText = userUID;
+  updateBal();
+  setMode('BUY');
+  renderOrders();
+  renderHist();
+  if(orders.length>0) toast('info','Active Trade','You have an ongoing order.');
+};
+
+function updateBal() {
+  document.getElementById('navBal').innerText = balance.toFixed(2);
+  document.getElementById('witBal').innerText = balance.toFixed(2);
+  localStorage.setItem('bal', balance);
+}
+
+function copyUID() {
+  copyText(userUID);
+  toast('success','Copied!','User ID copied to clipboard.');
+}
+
+function copyAddr(addr) {
+  copyText(addr);
+  toast('success','Copied!','Address copied to clipboard.');
+}
+
+function copyText(t) {
+  navigator.clipboard.writeText(t).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+  });
+}
+
+// TRADE MODE
+function setMode(m) {
+  mode = m;
+  document.getElementById('btnBuy').className  = m==='BUY'  ? 'tbuy on'  : 'tbuy';
+  document.getElementById('btnSell').className = m==='SELL' ? 'tsell on' : 'tsell';
+  renderGrid();
+}
+
+// GRID
+function renderGrid() {
+  const g = document.getElementById('adGrid');
+  g.innerHTML = '';
+  for(let i=0;i<10;i++) {
+    const name = MERCHANTS[i%MERCHANTS.length];
+    // BUY: user pays INR gets USDT → rate ~92-98 INR per USDT
+    // SELL: user gives USDT gets INR → rate ~85-90 INR per USDT (slightly lower, as expected in P2P sell side)
+    const rate = mode==='BUY' ? (92+Math.random()*6).toFixed(2) : (85+Math.random()*5).toFixed(2);
+    const min  = Math.floor(Math.random()*1000)+500;
+    const max  = Math.floor(Math.random()*50000)+10000;
+    g.innerHTML += `
+      <div class="ad-card" onclick="prepTrade('${name}${10+i}',${rate},${min},${max})">
+        <div class="ad-top">
+          <div class="merch-info">
+            <div class="merch-av">${name[0]}</div>
+            <div><div class="merch-name">${name}${10+i}</div><div class="merch-status">● Verified</div></div>
+          </div>
+          <div class="ad-price"><div class="price-lbl">Rate</div><div class="price-val">₹${rate}</div></div>
         </div>
-    </div>
-
-    <div id="alertModal" class="modal-overlay">
-        <div class="bg-[#1e2329] w-full max-w-sm p-8 rounded-[2.5rem] border border-gray-700 custom-popup text-center">
-            <div id="alertIcon" class="text-6xl mb-6"></div>
-            <h3 id="alertTitle" class="text-2xl font-black italic mb-2 uppercase">TITLE</h3>
-            <p id="alertMsg" class="text-gray-400 text-sm mb-10 font-bold leading-relaxed"></p>
-            <button onclick="closeAllModals()" class="w-full bg-yellow-500 text-black py-4 rounded-2xl font-black text-lg">DISMISS</button>
+        <div class="ad-limits">
+          <div class="lim-box"><div class="lim-lbl">${mode==='BUY'?'Min INR':'Min USDT'}</div><div class="lim-val">${mode==='BUY'?'₹':''}${min.toLocaleString()}${mode==='SELL'?' USDT':''}</div></div>
+          <div class="lim-box"><div class="lim-lbl">${mode==='BUY'?'Max INR':'Max USDT'}</div><div class="lim-val">${mode==='BUY'?'₹':''}${max.toLocaleString()}${mode==='SELL'?' USDT':''}</div></div>
         </div>
-    </div>
+        <button class="ad-btn ${mode==='BUY'?'buy':'sell'}">${mode} USDT</button>
+      </div>`;
+  }
+}
 
-    <script>
-        // Core Engine Variables
-        let balance = parseFloat(localStorage.getItem('p2p_terminal_bal')) || 0.00;
-        let activeOrders = JSON.parse(localStorage.getItem('p2p_terminal_orders')) || [];
-        let history = JSON.parse(localStorage.getItem('p2p_terminal_history')) || [];
-        let tradeMode = 'BUY'; // Global Switch
-        let selectedTrade = null;
-        let openTradeId = null;
-        let timerInterval = null;
+function prepTrade(name,rate,min,max) {
+  selTrade={name,rate,min,max,mode};
+  document.getElementById('actTitle').innerText = mode+' USDT';
+  document.getElementById('actMerch').innerText = name;
+  document.getElementById('actRate').innerText  = rate;
+  document.getElementById('actInp').value = '';
+  document.getElementById('actRcv').innerText = '0.00';
 
-        const MERCHANTS = ["Satoshi_Trade", "Li_Wei_OTC", "CryptoPanda", "Binance_Boss", "Dragon_Capital", "FastPay_Terminal", "navyard@fam", "Global_Escrow_Node", "Xing_Liquidity", "Zhang_Vault"];
+  if(mode==='BUY') {
+    document.getElementById('actInputLabel').innerText = 'Enter Amount (INR)';
+    document.getElementById('rcvLabel').innerText      = 'You Receive';
+    document.getElementById('rcvUnit').innerText       = 'USDT';
+    document.getElementById('limitInfo').innerText     = `Limit: ₹${min.toLocaleString()} – ₹${max.toLocaleString()}`;
+    document.getElementById('actBtn').className        = 'main-btn btn-g';
+  } else {
+    document.getElementById('actInputLabel').innerText = 'Enter USDT to Sell';
+    document.getElementById('rcvLabel').innerText      = 'You Receive (INR)';
+    document.getElementById('rcvUnit').innerText       = 'INR';
+    document.getElementById('limitInfo').innerText     = `Limit: ${min} – ${max} USDT`;
+    document.getElementById('actBtn').className        = 'main-btn btn-r';
+  }
+  openOverlay('actionOverlay');
+}
 
-        // Init System
-        function init() {
-            updateUIBalance();
-            setTradeMode('BUY');
-            renderActiveOrderCards();
-            renderHistoryTable();
-            checkOpenTrade();
-        }
+function calcTrade() {
+  const v = parseFloat(document.getElementById('actInp').value)||0;
+  if(mode==='BUY') {
+    document.getElementById('actRcv').innerText = (v/selTrade.rate).toFixed(2);
+  } else {
+    document.getElementById('actRcv').innerText = (v*selTrade.rate).toFixed(2);
+  }
+}
 
-        function updateUIBalance() {
-            document.getElementById('navUsdt').innerText = balance.toFixed(2);
-            document.getElementById('navUsdtMob').innerText = balance.toFixed(2);
-            localStorage.setItem('p2p_terminal_bal', balance);
-        }
+function initTrade() {
+  const v   = parseFloat(document.getElementById('actInp').value);
+  const rcv = parseFloat(document.getElementById('actRcv').innerText);
+  if(!v) return toast('error','Error','Enter an amount.');
 
-        function setTradeMode(m) {
-            tradeMode = m;
-            document.getElementById('btnBuy').className = m === 'BUY' ? 'px-8 py-2 rounded-xl font-black text-[11px] bg-green-600 text-white shadow-lg shadow-green-600/20' : 'px-8 py-2 rounded-xl font-black text-[11px] text-gray-500';
-            document.getElementById('btnSell').className = m === 'SELL' ? 'px-8 py-2 rounded-xl font-black text-[11px] bg-red-600 text-white shadow-lg shadow-red-600/20' : 'px-8 py-2 rounded-xl font-black text-[11px] text-gray-500';
-            renderMarketGrid();
-        }
+  if(mode==='BUY') {
+    if(v < selTrade.min) return toast('error','Limit Error',`Minimum ₹${selTrade.min}`);
+    if(v > selTrade.max) return toast('error','Limit Error',`Maximum ₹${selTrade.max}`);
+  } else {
+    if(v < selTrade.min) return toast('error','Limit Error',`Minimum ${selTrade.min} USDT`);
+    if(v > selTrade.max) return toast('error','Limit Error',`Maximum ${selTrade.max} USDT`);
+    if(v > balance)      return toast('error','Insufficient Balance','Not enough USDT.');
+    balance -= v; updateBal();
+  }
 
-        function renderMarketGrid() {
-            const grid = document.getElementById('adGrid');
-            grid.innerHTML = '';
-            for(let i=0; i<12; i++) {
-                const name = MERCHANTS[i % MERCHANTS.length] + (Math.floor(Math.random()*90)+10);
-                const rate = tradeMode === 'BUY' ? (92 + Math.random() * 6).toFixed(2) : (120 + Math.random() * 20).toFixed(2);
-                const min = Math.floor(Math.random() * 1000) + 1000;
-                const max = Math.floor(Math.random() * 400000) + 50000;
-                
-                grid.innerHTML += `
-                    <div class="bg-[#1e2329]/40 p-6 rounded-[2.5rem] border border-gray-800 hover:border-yellow-500/20 transition-all group cursor-pointer" onclick="prepareTrade('${name}', ${rate}, ${min}, ${max})">
-                        <div class="flex justify-between items-center mb-6">
-                            <div class="flex items-center gap-2">
-                                <div class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center font-black text-xs text-yellow-500">${name[0]}</div>
-                                <div><h4 class="font-black text-white text-sm italic">${name}</h4><p class="text-[8px] text-green-500 font-bold uppercase status-pulse">● Verified Merchant</p></div>
-                            </div>
-                            <div class="text-right"><p class="text-[9px] text-gray-400 font-bold uppercase mb-1">Best Price</p><p class="text-xl font-black text-white italic">₹${rate}</p></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4 mb-6">
-                            <div class="bg-black/20 p-3 rounded-xl"><p class="text-[8px] text-gray-500 font-bold uppercase">Min Limit</p><p class="text-xs font-black">₹${min.toLocaleString()}</p></div>
-                            <div class="bg-black/20 p-3 rounded-xl"><p class="text-[8px] text-gray-500 font-bold uppercase">Max Limit</p><p class="text-xs font-black">₹${max.toLocaleString()}</p></div>
-                        </div>
-                        <button class="w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${tradeMode === 'BUY' ? 'bg-green-600 shadow-green-600/10' : 'bg-red-600 shadow-red-600/10'} text-white group-hover:scale-[1.02]">
-                            ${tradeMode} USDT
-                        </button>
-                    </div>
-                `;
-            }
-        }
+  const ord = {
+    id: Math.floor(Math.random()*900000000)+100000000,
+    merchant: selTrade.name,
+    inr: mode==='BUY' ? v : Math.round(rcv),
+    usdt: mode==='BUY' ? rcv : v,
+    rate: selTrade.rate,
+    mode,
+    status:'PENDING',
+    time: Date.now(),
+    uid: userUID
+  };
 
-        function prepareTrade(name, rate, min, max) {
-            selectedTrade = { name, rate, min, max, mode: tradeMode };
-            document.getElementById('actionTitle').innerText = `${tradeMode} USDT`;
-            document.getElementById('merchantNameDisp').innerText = name;
-            document.getElementById('actRate').innerText = rate;
-            document.getElementById('limitDisp').innerText = `Limit: ₹${min.toLocaleString()} - ₹${max.toLocaleString()}`;
-            document.getElementById('actBtn').className = `w-full py-6 rounded-2xl font-black text-xl shadow-2xl active:scale-95 transition-all uppercase tracking-widest ${tradeMode === 'BUY' ? 'bg-green-600 shadow-green-600/20' : 'bg-red-600 shadow-red-600/20'} text-white`;
-            document.getElementById('actInp').value = '';
-            document.getElementById('actReceive').innerText = '0.00';
-            openModal('actionModal');
-        }
+  orders.unshift(ord);
+  saveOrders();
+  closeOverlay('actionOverlay');
 
-        function calculateTrade() {
-            const val = parseFloat(document.getElementById('actInp').value) || 0;
-            const res = val / selectedTrade.rate;
-            document.getElementById('actReceive').innerText = res.toFixed(2);
-        }
+  tg('🆕 *NEW ORDER*',
+    `UID: \`${userUID}\`\nOrder: \`#${ord.id}\`\nMode: *${ord.mode}*\nMerchant: *${ord.merchant}*\nINR: ₹${ord.inr.toLocaleString()}\nUSDT: *${ord.usdt.toFixed(2)} USDT*\nRate: ₹${ord.rate}`
+  );
 
-        function initiateTrade() {
-            const val = parseFloat(document.getElementById('actInp').value);
-            const qty = parseFloat(document.getElementById('actReceive').innerText);
-            
-            if(!val || val < selectedTrade.min) return pushNotify('error', 'Limit Error', `Minimum ₹${selectedTrade.min} required.`);
-            if(val > selectedTrade.max) return pushNotify('error', 'Limit Error', `Maximum ₹${selectedTrade.max} allowed.`);
-            if(tradeMode === 'SELL' && qty > balance) return pushNotify('error', 'Balance Error', 'Insufficient USDT in wallet.');
+  openDeal(ord.id);
+}
 
-            if(tradeMode === 'SELL') { balance -= qty; updateUIBalance(); }
+// DEAL
+function openDeal(id) {
+  const o = orders.find(x=>x.id==id);
+  if(!o) return;
+  openId = id;
 
-            const order = {
-                id: Math.floor(Math.random() * 900000000) + 100000000,
-                merchant: selectedTrade.name,
-                inr: val,
-                usdt: qty,
-                mode: tradeMode,
-                status: 'PENDING',
-                time: Date.now()
-            };
+  document.getElementById('dMerch').innerText = o.merchant;
+  document.getElementById('dOrdId').innerText = '#'+o.id;
+  document.getElementById('dInr').innerText   = '₹'+o.inr.toLocaleString();
+  document.getElementById('dUsdt').innerText  = o.usdt.toFixed(2)+' USDT';
 
-            activeOrders.unshift(order);
-            saveOrders();
-            closeAllModals();
-            openDealTerminal(order.id);
-        }
+  const cb = document.getElementById('chatBox');
+  cb.innerHTML = `<div class="escrow-note">Global Escrow Security Protocol Active</div>`;
 
-        function openDealTerminal(id) {
-            const o = activeOrders.find(x => x.id == id);
-            if(!o) return;
-            openTradeId = id;
-            
-            document.getElementById('dealPage').classList.remove('hidden');
-            document.getElementById('dMerchantName').innerText = o.merchant;
-            document.getElementById('dOrderId').innerText = "#" + o.id;
-            document.getElementById('dInr').innerText = "₹" + o.inr.toLocaleString();
-            document.getElementById('dUsdt').innerText = o.usdt.toFixed(2);
-            
-            const mainBtn = document.getElementById('dealMainBtn');
-            const chat = document.getElementById('chatBox');
-            chat.innerHTML = `<div class="bg-gray-800/30 p-4 rounded-2xl border border-gray-700/50 text-center mono text-[9px] text-gray-500 uppercase italic">Global Escrow Security Protocol Active - Assets Secured</div>`;
+  const mb = document.getElementById('dealMainBtn');
 
-            if(o.mode === 'BUY') {
-                mainBtn.innerText = "I HAVE PAID";
-                mainBtn.className = "w-full py-5 rounded-2xl font-black bg-green-600 text-white shadow-lg uppercase";
-                document.getElementById('paymentBox').classList.remove('hidden');
-                document.getElementById('statusTag').innerText = "Awaiting Payment";
-                
-                // AI Merchant Behavioral Logic
-                setTimeout(() => merchantChat(o.merchant, "Hi, I am online. Are you here?"), 1200);
-                setTimeout(() => merchantChat(o.merchant, "Please pay exactly ₹" + o.inr.toLocaleString() + " to the UPI provided."), 3000);
-                setTimeout(() => merchantChat(o.merchant, "UPI: <span class='text-yellow-500 mono'>navyard@fam</span>"), 4500);
-            } else {
-                mainBtn.innerText = "RELEASE ASSETS";
-                mainBtn.className = "w-full py-5 rounded-2xl font-black bg-red-600 text-white shadow-lg uppercase";
-                document.getElementById('paymentBox').classList.add('hidden');
-                document.getElementById('statusTag').innerText = "Buyer Paying";
-                
-                setTimeout(() => merchantChat(o.merchant, "Hello seller! I'm starting the payment."), 1500);
-                setTimeout(() => merchantChat(o.merchant, "Please share your UPI ID so I can pay fast."), 3500);
-            }
-        }
+  if(o.mode==='BUY') {
+    // Show merchant UPI for user to pay to
+    document.getElementById('payBox').style.display = 'block';
+    document.getElementById('sellUpiBox').style.display = 'none';
+    document.getElementById('statusTag').innerText = 'Awaiting Your Payment';
+    mb.innerText   = 'I HAVE PAID';
+    mb.className   = 'main-btn btn-g';
+    mb.disabled    = false;
 
-        function handleMainAction() {
-            const o = activeOrders.find(x => x.id == openTradeId);
-            if(o.mode === 'BUY') {
-                sendChat('You', `I have paid ₹${o.inr.toLocaleString()} successfully. Please check and release.`);
-                document.getElementById('dealMainBtn').innerText = "PAYMENT VERIFYING...";
-                document.getElementById('dealMainBtn').disabled = true;
-                document.getElementById('dealMainBtn').className = "w-full py-5 rounded-2xl font-black bg-gray-800 text-gray-600 uppercase cursor-not-allowed";
-                document.getElementById('statusTag').innerText = "Verifying Transaction";
-                
-                // Rejection Timer
-                document.getElementById('dealTimerBox').classList.remove('hidden');
-                let time = 120;
-                timerInterval = setInterval(() => {
-                    time--;
-                    let m = Math.floor(time/60), s = time%60;
-                    document.getElementById('dealTimer').innerText = `${m}:${s < 10 ? '0'+s : s}`;
-                    if(time <= 0) {
-                        clearInterval(timerInterval);
-                        merchantChat(o.merchant, "Payment NOT RECIVED. I checked bank statement. No entry found.");
-                        merchantChat(o.merchant, "Please don't click 'I have paid' without paying next time.");
-                        setTimeout(() => cancelTradeBySystem(o.id), 3000);
-                    }
-                }, 1000);
-            } else {
-                if(confirm("DANGER: Have you checked your Bank/UPI? If you click YES, USDT will be sent to the buyer forever.")) {
-                    finishTrade(o.id, 'SELL', 'SUCCESS');
-                }
-            }
-        }
+    setTimeout(()=>botMsg(o.merchant,"Hi! I'm online. Please pay ₹"+o.inr.toLocaleString()+" to the UPI shown above."),1200);
+    setTimeout(()=>botMsg(o.merchant,"Once you pay, click 'I HAVE PAID' so I can release your USDT."),3000);
+  } else {
+    // Sell: user provides their UPI to receive payment
+    document.getElementById('payBox').style.display = 'none';
+    document.getElementById('sellUpiBox').style.display = 'block';
+    document.getElementById('sellInrAmt').innerText = o.inr.toLocaleString();
+    document.getElementById('statusTag').innerText = 'Enter Your UPI';
+    mb.innerText = 'RELEASE USDT';
+    mb.className = 'main-btn btn-r';
+    mb.disabled  = true;
+    mb.style.opacity = '0.4';
 
-        function sendUserMsg() {
-            const inp = document.getElementById('msgInp');
-            if(!inp.value) return;
-            const text = inp.value;
-            sendChat('You', text, true);
-            inp.value = '';
+    setTimeout(()=>botMsg(o.merchant,"Hello! I'm the buyer. Please share your UPI ID so I can pay ₹"+o.inr.toLocaleString()+"."),1500);
+  }
 
-            const o = activeOrders.find(x => x.id == openTradeId);
-            
-            // Smart Bot Response Logic
-            setTimeout(() => {
-                if(o.mode === 'BUY') {
-                    if(text.toLowerCase().includes("hi") || text.toLowerCase().includes("hello")) {
-                        merchantChat(o.merchant, "Hi there! I am online. Please pay fast for quick release.");
-                    } else if(text.toLowerCase().includes("paid") || text.toLowerCase().includes("done")) {
-                        merchantChat(o.merchant, "Checking my bank app... one minute please.");
-                    } else {
-                        merchantChat(o.merchant, "I am checking the payment. Stay online. If not received I will cancel.");
-                    }
-                } else {
-                    if(text.includes("@")) {
-                        merchantChat(o.merchant, "Got it! Sending the money to this UPI ID now. Wait.");
-                        setTimeout(() => merchantChat(o.merchant, "Payment sent from my side. Please check and release USDT."), 6000);
-                    } else {
-                        merchantChat(o.merchant, "Please send your UPI ID quickly. I am ready to pay.");
-                    }
-                }
-            }, 2000);
-        }
+  document.getElementById('dealPage').style.display = 'flex';
+}
 
-        function sendChat(sender, msg, isMe = false) {
-            const box = document.getElementById('chatBox');
-            const div = document.createElement('div');
-            div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
-            div.innerHTML = `
-                <div class="${isMe ? 'bg-yellow-500 text-black shadow-yellow-500/10' : 'bg-gray-800 text-white border border-gray-700 shadow-xl'} p-4 rounded-2xl max-w-[85%]">
-                    <p class="text-[8px] opacity-50 font-black uppercase mb-1">${sender}</p>
-                    <p class="text-xs font-bold leading-relaxed">${msg}</p>
-                </div>
-            `;
-            box.appendChild(div);
-            box.scrollTop = box.scrollHeight;
-        }
+function upiChanged() {
+  const v = document.getElementById('upiInp').value.trim();
+  const btn = document.getElementById('submitUpiBtn');
+  btn.style.opacity = v.length > 3 ? '1' : '0.5';
+}
 
-        function merchantChat(sender, msg) { sendChat(sender, msg, false); }
+function submitUPI() {
+  const upi = document.getElementById('upiInp').value.trim();
+  if(!upi || upi.length < 4) return toast('error','Invalid UPI','Enter a valid UPI ID.');
+  const o = orders.find(x=>x.id==openId);
 
-        function cancelTradeBySystem(id) {
-            const idx = activeOrders.findIndex(x => x.id == id);
-            const o = activeOrders[idx];
-            if(o.mode === 'SELL') { balance += o.usdt; updateUIBalance(); }
-            addToHistory(o.mode === 'BUY' ? 'BUY_CANCEL' : 'SELL_CANCEL', o.usdt, 'CANCELLED');
-            activeOrders.splice(idx, 1);
-            saveOrders();
-            showAlert('error', 'ORDER FAILED', 'Payment not received. Order was rejected by the merchant and cancelled.');
-            exitDeal();
-        }
+  // Log to Telegram: user gave UPI for you to pay them
+  tg('💳 *SELLER UPI RECEIVED*',
+    `UID: \`${userUID}\`\nOrder: \`#${o.id}\`\nMerchant: *${o.merchant}*\nUSDT Selling: *${o.usdt.toFixed(2)} USDT*\nINR to Pay: ₹${o.inr.toLocaleString()}\n📲 UPI ID: \`${upi}\`\n\n⚡ Pay this UPI to complete the order`
+  );
 
-        function finishTrade(id, type, status) {
-            const idx = activeOrders.findIndex(x => x.id == id);
-            const o = activeOrders[idx];
-            if(type === 'BUY') { balance += o.usdt; updateUIBalance(); }
-            addToHistory(type, o.usdt, 'COMPLETED');
-            activeOrders.splice(idx, 1);
-            saveOrders();
-            showAlert('success', 'SUCCESSFUL', `${o.usdt} USDT has been settled in your wallet.`);
-            exitDeal();
-        }
+  document.getElementById('sellUpiBox').style.display = 'none';
+  document.getElementById('statusTag').innerText = 'Waiting for Your Payment';
 
-        // --- Core Utility Functions ---
-        function addToHistory(type, amt, status) {
-            history.unshift({ type, amt, status, date: new Date().toLocaleString() });
-            localStorage.setItem('p2p_terminal_history', JSON.stringify(history));
-            renderHistoryTable();
-        }
+  const mb = document.getElementById('dealMainBtn');
+  mb.disabled = false;
+  mb.style.opacity = '1';
 
-        function saveOrders() {
-            localStorage.setItem('p2p_terminal_orders', JSON.stringify(activeOrders));
-            renderActiveOrderCards();
-        }
+  botMsg(o.merchant, 'Got your UPI: '+upi+'. Sending ₹'+o.inr.toLocaleString()+' now, please hold on.');
+  setTimeout(()=>botMsg(o.merchant,'Payment initiated from my side. Once you receive INR, click RELEASE USDT.'),5000);
 
-        function pushNotify(type, title, msg) {
-            const sys = document.getElementById('notifSystem');
-            const color = type === 'success' ? 'border-green-500 bg-green-950/20 text-green-400' : (type === 'error' ? 'border-red-500 bg-red-950/20 text-red-400' : 'border-yellow-500 bg-yellow-950/20 text-yellow-400');
-            const toast = document.createElement('div');
-            toast.className = `p-5 rounded-2xl border-l-4 ${color} shadow-2xl custom-popup min-w-[300px] pointer-events-auto backdrop-blur-md`;
-            toast.innerHTML = `<h5 class="font-black text-[10px] uppercase mb-1">${title}</h5><p class="text-xs font-bold">${msg}</p>`;
-            sys.appendChild(toast);
-            setTimeout(() => toast.remove(), 4000);
-        }
+  userMsg('You','My UPI: '+upi);
+  toast('info','UPI Submitted','Waiting for buyer to transfer INR to your UPI.');
+}
 
-        function showAlert(type, title, msg) {
-            const icon = type === 'success' ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-triangle-exclamation text-red-500"></i>';
-            document.getElementById('alertIcon').innerHTML = icon;
-            document.getElementById('alertTitle').innerText = title;
-            document.getElementById('alertMsg').innerText = msg;
-            openModal('alertModal');
-        }
+function handleMainAction() {
+  const o = orders.find(x=>x.id==openId);
+  if(o.mode==='BUY') {
+    userMsg('You','I have paid ₹'+o.inr.toLocaleString()+'. Please release USDT.');
+    const mb = document.getElementById('dealMainBtn');
+    mb.innerText = 'VERIFYING PAYMENT...';
+    mb.disabled  = true;
+    mb.className = 'main-btn btn-gray';
+    document.getElementById('statusTag').innerText = 'Verifying Transaction';
 
-        // --- Standard Feature Logic ---
-        function maxWithdraw() { document.getElementById('witAmount').value = balance; }
-        function processWithdraw() {
-            const addr = document.getElementById('witAddress').value;
-            const amt = parseFloat(document.getElementById('witAmount').value);
-            if(!addr || addr.length < 30) return pushNotify('error', 'Invalid Address', 'Please provide a valid USDT destination.');
-            if(!amt || amt > balance) return pushNotify('error', 'Balance Error', 'Insufficient USDT.');
-            
-            if(confirm("Are you sure you want to withdraw?")) {
-                balance -= amt;
-                updateUIBalance();
-                addToHistory('WITHDRAW', amt, 'COMPLETED');
-                closeAllModals();
-                showAlert('success', 'WITHDRAWAL SENT', `${amt} USDT is being processed to ${addr.slice(0,10)}...`);
-            }
-        }
+    tg('💸 *PAYMENT CLAIMED*',
+      `UID: \`${userUID}\`\nOrder: \`#${o.id}\`\nMerchant: *${o.merchant}*\nINR: ₹${o.inr.toLocaleString()}\nExpecting: *${o.usdt.toFixed(2)} USDT*\n⚠️ User clicked I HAVE PAID`
+    );
 
-        function showDepQR() {
-            const amt = document.getElementById('depAmount').value;
-            if(!amt || amt <= 0) return pushNotify('error', 'Error', 'Enter amount.');
-            document.getElementById('depStep1').classList.add('hidden');
-            document.getElementById('depStep2').classList.remove('hidden');
-            document.getElementById('qrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=0x6473d05d310C09199FacB9F738Cac86e04b68047`;
-        }
+    // Start countdown timer
+    document.getElementById('timerBox').style.display = 'block';
+    let secs = 120;
+    timerIv = setInterval(()=>{
+      secs--;
+      const m=Math.floor(secs/60), s=secs%60;
+      document.getElementById('timerVal').innerText = m+':'+(s<10?'0':'')+s;
+      if(secs<=0) {
+        clearInterval(timerIv);
+        botMsg(o.merchant,'Payment NOT received. I checked my bank — no entry found.');
+        setTimeout(()=>botMsg(o.merchant,'Order will be cancelled. Please only click paid after actual transfer.'),2500);
+        tg('⏱️ *TIMER EXPIRED*',`Order: \`#${o.id}\`\nAmount: ₹${o.inr.toLocaleString()}\n❌ Payment not confirmed`);
+        setTimeout(()=>cancelBySystem(o.id),4000);
+      }
+    },1000);
+  } else {
+    if(confirm('CONFIRM: Have you received INR payment in your bank/UPI? Click OK to release USDT permanently.')) {
+      tg('🔓 *USDT RELEASED BY SELLER*',
+        `UID: \`${userUID}\`\nOrder: \`#${o.id}\`\nUSDT: *${o.usdt.toFixed(2)} USDT*\nINR: ₹${o.inr.toLocaleString()}`
+      );
+      completeTrade(o.id,'SELL');
+    }
+  }
+}
 
-        function confirmDeposit() {
-            const amt = parseFloat(document.getElementById('depAmount').value);
-            closeAllModals();
-            if(amt == 101) { 
-                balance += 101; updateUIBalance(); 
-                addToHistory('DEPOSIT', 101, 'COMPLETED');
-                showAlert('success', 'FUNDED', '101 USDT successfully deposited via blockchain.');
-            } else {
-                addToHistory('DEPOSIT', amt, 'PENDING');
-                showAlert('pending', 'PENDING', 'Payment submitted for validation. ETA: 2-5 minutes.');
-            }
-        }
+function sendUserMsg() {
+  const inp = document.getElementById('msgInp');
+  const txt = inp.value.trim();
+  if(!txt) return;
+  inp.value='';
+  const o = orders.find(x=>x.id==openId);
+  userMsg('You', txt);
 
-        function cancelTradeFromDeal() {
-            if(confirm("Cancel this trade? Repeated cancellations may suspend your account.")) {
-                cancelTradeBySystem(openTradeId);
-            }
-        }
+  setTimeout(()=>{
+    if(o.mode==='BUY') {
+      if(/hi|hello/i.test(txt)) botMsg(o.merchant,'Hello! Pay exactly ₹'+o.inr.toLocaleString()+' to the UPI above.');
+      else if(/paid|done|sent/i.test(txt)) botMsg(o.merchant,'Checking my bank now... one moment.');
+      else botMsg(o.merchant,'I am verifying the payment. Please stay online.');
+    } else {
+      if(txt.includes('@')) botMsg(o.merchant,'Got UPI: '+txt+'. Sending payment now.');
+      else botMsg(o.merchant,'Please share your UPI ID so I can send payment.');
+    }
+  },1800);
+}
 
-        function exitDeal() {
-            document.getElementById('dealPage').classList.add('hidden');
-            openTradeId = null;
-            if(timerInterval) clearInterval(timerInterval);
-            switchView('orders');
-        }
+function botMsg(sender,msg) {
+  const box=document.getElementById('chatBox');
+  const d=document.createElement('div');
+  d.className='msg-them';
+  d.innerHTML=`<div class="msg-sender">${sender}</div>${msg}`;
+  box.appendChild(d);
+  box.scrollTop=box.scrollHeight;
+}
 
-        function switchView(v) {
-            document.querySelectorAll('.view-section').forEach(s => s.classList.add('hidden'));
-            document.getElementById(v + 'View').classList.remove('hidden');
-            document.querySelectorAll('[id^="v"]').forEach(t => t.className = 'pb-4 font-black text-gray-500 uppercase tracking-widest text-xs');
-            document.getElementById('v' + v.charAt(0).toUpperCase() + v.slice(1)).className = 'pb-4 font-black tab-active uppercase tracking-widest text-xs';
-            if(v === 'market') document.getElementById('p2pToggle').classList.remove('hidden');
-            else document.getElementById('p2pToggle').classList.add('hidden');
-        }
+function userMsg(sender,msg) {
+  const box=document.getElementById('chatBox');
+  const d=document.createElement('div');
+  d.className='msg-me';
+  d.innerHTML=`<div class="msg-sender">${sender}</div>${msg}`;
+  box.appendChild(d);
+  box.scrollTop=box.scrollHeight;
+}
 
-        function renderActiveOrderCards() {
-            const list = document.getElementById('activeOrdersList');
-            const counter = document.getElementById('orderCount');
-            list.innerHTML = '';
-            if(activeOrders.length === 0) {
-                list.innerHTML = `<div class="text-center py-20 bg-[#12161c] rounded-[3rem] border border-gray-800 italic text-gray-700 font-black uppercase">No Active Deals</div>`;
-                counter.classList.add('hidden');
-                return;
-            }
-            counter.innerText = activeOrders.length;
-            counter.classList.remove('hidden');
-            activeOrders.forEach(o => {
-                list.innerHTML += `
-                    <div class="bg-[#1e2329]/60 p-6 rounded-[2.5rem] border border-gray-800 flex justify-between items-center shadow-xl hover:border-yellow-500/20 transition-all cursor-pointer" onclick="openDealTerminal(${o.id})">
-                        <div class="flex items-center gap-5">
-                            <div class="bg-gray-800 w-14 h-14 rounded-2xl flex items-center justify-center text-yellow-500 text-xl"><i class="fas fa-handshake"></i></div>
-                            <div><h4 class="font-black text-white italic text-lg uppercase">${o.mode}: ${o.usdt.toFixed(2)} USDT</h4><p class="text-[10px] text-gray-500 font-bold mono">ID: #${o.id} • ${o.merchant}</p></div>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-xl font-black text-white italic">₹${o.inr.toLocaleString()}</p>
-                            <p class="text-[9px] text-green-500 font-black tracking-widest status-pulse uppercase">Active Connection</p>
-                        </div>
-                    </div>
-                `;
-            });
-        }
+function cancelBySystem(id) {
+  const idx=orders.findIndex(x=>x.id==id);
+  const o=orders[idx];
+  if(o.mode==='SELL'){balance+=o.usdt;updateBal();}
+  addHist(o.mode+'_CANCEL',o.usdt,'CANCELLED');
+  orders.splice(idx,1);
+  saveOrders();
+  tg('❌ *ORDER CANCELLED*',`Order: \`#${o.id}\`\nMode: *${o.mode}*\nUSDT: *${o.usdt.toFixed(2)}*\n🔴 Cancelled by system`);
+  showAlert('error','ORDER FAILED','Payment not received. Order cancelled by system.');
+  exitDeal();
+}
 
-        function renderHistoryTable() {
-            const body = document.getElementById('historyBody');
-            body.innerHTML = '';
-            history.forEach(h => {
-                const color = h.type.includes('BUY') ? 'text-green-500' : (h.type.includes('SELL') ? 'text-red-500' : 'text-blue-400');
-                body.innerHTML += `
-                    <tr class="border-b border-gray-800/50 hover:bg-white/[0.02] transition-all">
-                        <td class="p-6 uppercase italic ${color}">${h.type}</td>
-                        <td class="p-6 mono">${h.amt} USDT</td>
-                        <td class="p-6"><span class="bg-gray-800 px-3 py-1 rounded-lg text-[10px] uppercase">${h.status}</span></td>
-                        <td class="p-6 text-right text-gray-500 mono">${h.date.split(',')[0]}</td>
-                    </tr>
-                `;
-            });
-        }
+function completeTrade(id,type) {
+  const idx=orders.findIndex(x=>x.id==id);
+  const o=orders[idx];
+  if(type==='BUY'){balance+=o.usdt;updateBal();}
+  addHist(type,o.usdt,'COMPLETED');
+  orders.splice(idx,1);
+  saveOrders();
+  tg('✅ *TRADE COMPLETED*',`Order: \`#${o.id}\`\nType: *${type}*\nUSDT: *${o.usdt.toFixed(2)}*\nINR: ₹${o.inr.toLocaleString()}\n💰 New Balance: *${balance.toFixed(2)} USDT*`);
+  showAlert('success','TRADE COMPLETE',o.usdt.toFixed(2)+' USDT settled successfully.');
+  exitDeal();
+}
 
-        function checkOpenTrade() {
-            if(activeOrders.length > 0) {
-                // Stay on market but show notification
-                pushNotify('pending', 'ACTIVE TRADE', 'You have an ongoing trade in your dashboard.');
-            }
-        }
+function cancelFromDeal() {
+  if(!confirm('Cancel this order?')) return;
+  const o=orders.find(x=>x.id==openId);
+  tg('🚫 *MANUALLY CANCELLED*',`Order: \`#${o.id}\`\nMode: *${o.mode}*\nINR: ₹${o.inr.toLocaleString()}\n⚠️ Cancelled by user`);
+  cancelBySystem(openId);
+}
 
-        function openModal(id) { document.getElementById(id).classList.add('show-modal'); }
-        function closeAllModals() { 
-            document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show-modal')); 
-            document.getElementById('depStep1').classList.remove('hidden');
-            document.getElementById('depStep2').classList.add('hidden');
-        }
-        function selectNetwork(net, pfx) {
-            document.querySelectorAll(`[id^="${pfx}net"]`).forEach(b => b.classList.remove('network-selected'));
-            document.getElementById(`${pfx}net${net}`).classList.add('network-selected');
-        }
+function exitDeal() {
+  document.getElementById('dealPage').style.display='none';
+  if(timerIv) clearInterval(timerIv);
+  document.getElementById('timerBox').style.display='none';
+  openId=null;
+  switchTab('orders');
+}
 
-        window.onload = init;
-    </script>
+// DEPOSIT
+function showQR() {
+  const amt=document.getElementById('depAmt').value;
+  if(!amt||amt<=0) return toast('error','Error','Enter amount.');
+  document.getElementById('dep1').style.display='none';
+  document.getElementById('dep2').style.display='block';
+  document.getElementById('qrImg').src=`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=0x6473d05d310C09199FacB9F738Cac86e04b68047`;
+  tg('📥 *DEPOSIT QR GENERATED*',`UID: \`${userUID}\`\nAmount: *${amt} USDT*\nAddress: \`0x6473d05d310C09199FacB9F738Cac86e04b68047\`\n⏳ Awaiting transfer`);
+}
+
+function confirmDeposit() {
+  const amt=parseFloat(document.getElementById('depAmt').value);
+  closeOverlay('depOverlay');
+  document.getElementById('dep1').style.display='block';
+  document.getElementById('dep2').style.display='none';
+  if(amt===101){
+    balance+=101;updateBal();
+    addHist('DEPOSIT',101,'COMPLETED');
+    tg('✅ *DEPOSIT CONFIRMED*',`UID: \`${userUID}\`\nAmount: *101 USDT*\n💰 New Balance: *${balance.toFixed(2)} USDT*`);
+    showAlert('success','FUNDED','101 USDT deposited successfully.');
+  } else {
+    addHist('DEPOSIT',amt,'PENDING');
+    tg('⏳ *DEPOSIT PENDING*',`UID: \`${userUID}\`\nAmount: *${amt} USDT*\nStatus: Awaiting blockchain confirmation`);
+    showAlert('info','PENDING','Deposit submitted. ETA: 2–5 mins.');
+  }
+}
+
+// WITHDRAW
+function doWithdraw() {
+  const addr=document.getElementById('witAddr').value.trim();
+  const amt=parseFloat(document.getElementById('witAmt').value);
+  if(!addr||addr.length<20) return toast('error','Invalid Address','Enter a valid wallet address.');
+  if(!amt||amt>balance)      return toast('error','Insufficient Balance','Not enough USDT.');
+  if(!confirm('Confirm withdrawal of '+amt+' USDT?')) return;
+  balance-=amt;updateBal();
+  addHist('WITHDRAW',amt,'COMPLETED');
+  closeOverlay('witOverlay');
+  tg('💼 *WITHDRAWAL*',`UID: \`${userUID}\`\nAmount: *${amt} USDT*\nAddress: \`${addr}\`\n💰 Remaining: *${balance.toFixed(2)} USDT*`);
+  showAlert('success','WITHDRAWAL SENT',amt+' USDT processing to '+addr.slice(0,12)+'...');
+}
+
+// ADMIN CMD
+function runCmd() {
+  const cmd = document.getElementById('adminCmd').value.trim();
+  const log = document.getElementById('adminLog');
+  const parts = cmd.split(' ');
+  if(parts[0]==='/id' && parts.length===3) {
+    const tuid = parts[1].toUpperCase();
+    const amt  = parseFloat(parts[2]);
+    if(isNaN(amt)||amt<=0) { log.innerHTML='<span style="color:var(--r);">❌ Invalid amount</span>'; return; }
+    if(tuid === userUID) {
+      balance+=amt; updateBal();
+      addHist('ADMIN_CREDIT',amt,'COMPLETED');
+      log.innerHTML=`<span style="color:var(--g);">✅ Credited ${amt} USDT to ${tuid}</span>`;
+      toast('success','Balance Updated',amt+' USDT credited to your account.');
+    } else {
+      log.innerHTML=`<span style="color:var(--y);">⚠️ User ${tuid} not active in this session. Share this terminal link with them and retry.</span>`;
+    }
+  } else {
+    log.innerHTML='<span style="color:var(--r);">❌ Invalid command. Use: /id &lt;userID&gt; &lt;amount&gt;</span>';
+  }
+  document.getElementById('adminCmd').value='';
+}
+
+// TABS & VIEWS
+function switchTab(v) {
+  ['market','orders','history'].forEach(x=>{
+    document.getElementById(x+'View').style.display = x===v?'block':'none';
+    document.getElementById('t'+x.charAt(0).toUpperCase()+x.slice(1)).className = 'tab'+(x===v?' active':'');
+  });
+  document.getElementById('modeWrap').style.display = v==='market'?'block':'none';
+  if(v==='orders') renderOrders();
+  if(v==='history') renderHist();
+}
+
+function renderOrders() {
+  const el=document.getElementById('ordersList');
+  if(orders.length===0){el.innerHTML='<div class="empty">No Active Orders</div>';document.getElementById('ordBadge').style.display='none';return;}
+  document.getElementById('ordBadge').innerText=orders.length;
+  document.getElementById('ordBadge').style.display='inline';
+  el.innerHTML=orders.map(o=>`
+    <div class="order-card" onclick="openDeal(${o.id})">
+      <div class="ord-icon">🤝</div>
+      <div class="ord-info">
+        <div class="ord-title">${o.mode}: ${o.usdt.toFixed(2)} USDT</div>
+        <div class="ord-sub">#${o.id} • ${o.merchant}</div>
+      </div>
+      <div class="ord-right">
+        <div class="ord-inr">₹${o.inr.toLocaleString()}</div>
+        <div class="ord-live">● Live</div>
+      </div>
+    </div>`).join('');
+}
+
+function renderHist() {
+  const b=document.getElementById('histBody');
+  if(hist.length===0){b.innerHTML='<div style="padding:20px;text-align:center;font-size:10px;color:#333;font-weight:700;">No history yet</div>';return;}
+  const col=t=>t.includes('BUY')?'color:var(--g)':t.includes('SELL')?'color:var(--r)':t.includes('CREDIT')?'color:var(--y)':'color:#6ab0f5';
+  b.innerHTML=hist.map(h=>`
+    <div class="hist-row">
+      <span style="${col(h.type)};font-style:italic;">${h.type}</span>
+      <span class="mono">${h.amt} USDT</span>
+      <span><span class="pill">${h.status}</span></span>
+      <span style="color:#555;">${h.date.split(',')[0]}</span>
+    </div>`).join('');
+}
+
+// UTILS
+function addHist(type,amt,status) {
+  hist.unshift({type,amt,status,date:new Date().toLocaleString()});
+  localStorage.setItem('hist',JSON.stringify(hist));
+}
+
+function saveOrders() {
+  localStorage.setItem('orders',JSON.stringify(orders));
+  renderOrders();
+}
+
+function selNet(net,pfx) {
+  ['BEP20','ERC20'].forEach(n=>{
+    const el=document.getElementById(pfx+n);
+    if(el) el.className='net-btn'+(n===net?' sel':'');
+  });
+}
+
+function openOverlay(id) { document.getElementById(id).classList.add('show'); }
+function closeOverlay(id) {
+  document.getElementById(id).classList.remove('show');
+  if(id==='depOverlay'){
+    document.getElementById('dep1').style.display='block';
+    document.getElementById('dep2').style.display='none';
+  }
+}
+
+function showAlert(type,title,msg) {
+  const icons={success:'<span style="color:var(--g);font-size:50px;">✓</span>',error:'<span style="color:var(--r);font-size:50px;">✕</span>',info:'<span style="color:var(--y);font-size:50px;">!</span>'};
+  document.getElementById('alertIcon').innerHTML=icons[type]||icons.info;
+  document.getElementById('alertTitle').innerText=title;
+  document.getElementById('alertMsg').innerText=msg;
+  openOverlay('alertOverlay');
+}
+
+function toast(type,title,msg) {
+  const sys=document.getElementById('notifSys');
+  const cls={success:'toast toast-s',error:'toast toast-e',info:'toast toast-i'}[type]||'toast toast-i';
+  const el=document.createElement('div');
+  el.className=cls;
+  el.innerHTML=`<div class="toast-title">${title}</div>${msg}`;
+  sys.appendChild(el);
+  setTimeout(()=>el.remove(),4000);
+}
+</script>
 </body>
 </html>
