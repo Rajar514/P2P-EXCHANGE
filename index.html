@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -178,9 +178,13 @@ main{padding:12px 14px 30px;}
 .upi-inp{width:100%;background:#0b0e11;border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:14px;font-weight:700;color:#fff;outline:none;font-family:'Inter',sans-serif;}
 .upi-inp:focus{border-color:var(--g);}
 
-/* Telegram bridge indicator */
 .tg-live-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(38,162,254,.1);border:1px solid rgba(38,162,254,.25);border-radius:20px;padding:4px 10px;font-size:8px;font-weight:900;color:#4dabf7;text-transform:uppercase;letter-spacing:.06em;}
 .tg-live-dot{width:6px;height:6px;border-radius:50%;background:#4dabf7;animation:pulse 1.5s infinite;}
+
+/* Chat bridge status indicator */
+.bridge-status{display:flex;align-items:center;gap:5px;padding:6px 10px;font-size:8px;font-weight:700;color:#555;text-transform:uppercase;border-bottom:1px solid var(--border);}
+.bridge-dot{width:5px;height:5px;border-radius:50%;background:#555;}
+.bridge-dot.live{background:var(--g);animation:pulse 1.5s infinite;}
 </style>
 </head>
 <body>
@@ -190,7 +194,8 @@ main{padding:12px 14px 30px;}
   <nav>
     <div class="nav-row1">
       <div class="logo" onclick="location.reload()">
-        <img src="IMG_8137.jpeg" style="width:30px; height:30px; border-radius:8px; object-fit:cover;">
+        <img src="IMG_8137.jpeg" style="width:30px; height:30px; border-radius:8px; object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="logo-icon" style="display:none;">P</div>
         <div><h1>PRO<span>P2P</span></h1><p>Verified Terminal</p></div>
       </div>
       <div class="uid-chip" onclick="copyUID()" id="uidChip">
@@ -298,7 +303,7 @@ main{padding:12px 14px 30px;}
         <div class="spinner"></div>
         <div class="pending-title">Checking Blockchain</div>
         <div class="pending-sub" id="dep3Sub">Verifying your transaction on-chain...<br>Please keep this window open.</div>
-        <div class="tg-hint"><i class="fab fa-telegram"></i>Blockchain verification usually takes 1-3 minutes. Thanks....</div>
+        <div class="tg-hint"><i class="fab fa-telegram"></i>Blockchain verification usually takes 1-3 minutes.</div>
       </div>
       <button class="main-btn btn-gray" onclick="cancelDepPending()" style="margin-top:14px;">CANCEL</button>
     </div>
@@ -332,7 +337,7 @@ main{padding:12px 14px 30px;}
         <div class="spinner"></div>
         <div class="pending-title">Processing Withdrawal</div>
         <div class="pending-sub" id="wit2Sub">Broadcasting transaction to network...<br>Please keep this window open.</div>
-        <div class="tg-hint"><i class="fab fa-telegram"></i>Blockchain verification usually takes 1-3 minutes. Thanks..</div>
+        <div class="tg-hint"><i class="fab fa-telegram"></i>Blockchain verification usually takes 1-3 minutes.</div>
       </div>
       <button class="main-btn btn-gray" onclick="cancelWitPending()" style="margin-top:14px;">CANCEL</button>
     </div>
@@ -398,6 +403,10 @@ main{padding:12px 14px 30px;}
     </div>
 
     <div class="chat-wrap">
+      <div class="bridge-status" id="bridgeStatus">
+        <div class="bridge-dot" id="bridgeDot"></div>
+        <span id="bridgeStatusText">Connecting to chat...</span>
+      </div>
       <div id="chatBox"></div>
       <div class="chat-foot">
         <button id="dealMainBtn" onclick="handleMainAction()" class="main-btn btn-g" style="margin-top:0;"></button>
@@ -411,10 +420,16 @@ main{padding:12px 14px 30px;}
 </div>
 
 <script>
+// ═══════════════════════════════════════════════════════
+// CONFIG — replace with your values
+// ═══════════════════════════════════════════════════════
 const TG_TOKEN = "7284611660:AAGb49YDYdH6my_WT5DS8jBhWsGGmeAOPkI";
 const TG_CHAT  = "8515209984";
 const API      = `https://api.telegram.org/bot${TG_TOKEN}`;
 
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
 let balance  = parseFloat(localStorage.getItem('bal'))||0;
 let orders   = JSON.parse(localStorage.getItem('orders'))||[];
 let hist     = JSON.parse(localStorage.getItem('hist'))||[];
@@ -424,29 +439,33 @@ let openId   = null;
 let userUID  = localStorage.getItem('uid') || genUID();
 let pendingAction = null;
 
-// ─── CHAT STATE PERSISTENCE ───────────────────────────────
-// Keyed by orderId: { messages:[], dealState:{}, tgMsgId, cbId, upiSubmitted }
+// ── Single master polling interval ──
+let masterPollIv = null;
+// Tracks the highest update_id we've already processed
+let lastUpdateId = parseInt(localStorage.getItem('lastUpdateId')||'0');
+
+// Per-order chat state: { messages[], tgMsgId, cbId, dealStage, upiSubmitted }
 function getChatState(id){ return JSON.parse(localStorage.getItem('chat_'+id)||'null'); }
-function saveChatState(id, state){ localStorage.setItem('chat_'+id, JSON.stringify(state)); }
+function saveChatState(id,state){ localStorage.setItem('chat_'+id,JSON.stringify(state)); }
 function clearChatState(id){ localStorage.removeItem('chat_'+id); }
+function saveLastUpdateId(id){ lastUpdateId=id; localStorage.setItem('lastUpdateId',id); }
 
-// ─── TG REPLY BRIDGE: track which TG message_id maps to which order ──
-// So when admin replies to a trade message we show it in chat
-let tgReplyBridgeInterval = null;
-
-function genUID() {
+function genUID(){
   const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let id='';for(let i=0;i<6;i++)id+=c[Math.floor(Math.random()*c.length)];
-  localStorage.setItem('uid',id);return id;
+  let id=''; for(let i=0;i<6;i++) id+=c[Math.floor(Math.random()*c.length)];
+  localStorage.setItem('uid',id); return id;
 }
 
-const BUY_MERCHANTS  = ["Satoshi_Trade","RupeeGateway","QuickBuyer99","INR_Liquidity","FastCrypto_IN","BuyNode_Prime","CoinBridge_24","TrustBuy_OTC","InstantUSDT","PayFlow_Crypto"];
-const SELL_MERCHANTS = ["Li_Wei_OTC","Dragon_Capital","Zhang_Vault","Xing_Liquidity","Global_Escrow","navyard_Boss","SellFast_Node","OTC_Master","CashOut_Pro","Direct_Settle"];
+const BUY_MERCHANTS  = ["Rahul_Sharma","Amit_Verma","Priya_Trades","Deepak_OTC","Suresh_USDT","Vikram_Buy","Neha_Crypto","Rohit_INR","Anjali_P2P","Manish_Trade","Pooja_USDT","Arjun_Fast","Kavita_Buy","Sanjay_OTC","Ritika_Crypto","Gaurav_INR","Sunita_Trade","Aakash_P2P","Divya_USDT","Ravi_Exchange"];
+const SELL_MERCHANTS = ["Kiran_Sell","Vishal_OTC","Meena_Trade","Ajay_USDT","Sneha_P2P","Tarun_Sell","Bhavna_INR","Yash_Crypto","Nisha_Trade","Mohit_OTC","Preeti_USDT","Aman_Sell","Rekha_P2P","Nikhil_Trade","Swati_INR","Lokesh_OTC","Payal_Crypto","Vivek_Sell","Shruti_USDT","Harish_Trade"];
 
 window.onload=function(){
   document.getElementById('uidDisplay').innerText=userUID;
-  updateBal();setMode('BUY');renderOrders();renderHist();
-  if(orders.length>0)toast('info','Active Trade','You have an ongoing order.');
+  updateBal(); setMode('BUY'); renderOrders(); renderHist();
+  if(orders.length>0) toast('info','Active Trade','You have an ongoing order.');
+  startMasterPoll();
+  // Silent market refresh every 5 min — new names, rates, limits
+  setInterval(()=>{ if(!openId) renderGrid(); }, 5*60*1000);
 };
 
 function updateBal(){
@@ -455,13 +474,13 @@ function updateBal(){
   localStorage.setItem('bal',balance);
 }
 
-function copyUID(){copyText(userUID);toast('success','Copied!','User ID copied.');}
-function copyAddr(a){copyText(a);toast('success','Copied!','Address copied.');}
+function copyUID(){ copyText(userUID); toast('success','Copied!','User ID copied.'); }
+function copyAddr(a){ copyText(a); toast('success','Copied!','Address copied.'); }
 
 function copyMerchantUpi(){
-  const upi = document.getElementById('merchantUpi').innerText;
+  const upi=document.getElementById('merchantUpi').innerText;
   copyText(upi);
-  const btn = document.getElementById('upiCopyBtn');
+  const btn=document.getElementById('upiCopyBtn');
   btn.classList.add('copied');
   btn.innerHTML='<i class="fas fa-check"></i> COPIED';
   setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML='<i class="fas fa-copy"></i> COPY';},2000);
@@ -470,141 +489,221 @@ function copyMerchantUpi(){
 
 function copyText(t){
   navigator.clipboard.writeText(t).catch(()=>{
-    const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    const ta=document.createElement('textarea');ta.value=t;
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
   });
 }
 
-// ─── TELEGRAM HELPERS ─────────────────────────────────────
-async function tgSendWithButtons(text, callbackId) {
-  const res = await fetch(`${API}/sendMessage`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      chat_id: TG_CHAT, text, parse_mode:'Markdown',
-      reply_markup:{ inline_keyboard:[[
-        {text:'✅ APPROVE', callback_data:`approve_${callbackId}`},
-        {text:'❌ REJECT',  callback_data:`reject_${callbackId}`}
-      ]]}
-    })
+// ═══════════════════════════════════════════════════════
+// TELEGRAM API HELPERS
+// ═══════════════════════════════════════════════════════
+
+// Core fetch with CORS fix — always use no-cache
+async function tgFetch(endpoint, body){
+  try {
+    const res = await fetch(`${API}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    return data;
+  } catch(e) {
+    console.warn('TG fetch error:', endpoint, e);
+    return { ok: false };
+  }
+}
+
+async function tgSend(text){
+  return tgFetch('sendMessage',{ chat_id:TG_CHAT, text, parse_mode:'Markdown' });
+}
+
+async function tgSendWithButtons(text, cbId){
+  const data = await tgFetch('sendMessage',{
+    chat_id: TG_CHAT, text, parse_mode: 'Markdown',
+    reply_markup:{ inline_keyboard:[[
+      { text:'✅ APPROVE', callback_data:`approve_${cbId}` },
+      { text:'❌ REJECT',  callback_data:`reject_${cbId}` }
+    ]]}
   });
-  const data = await res.json();
   return data.ok ? data.result.message_id : null;
 }
 
-function tg(event, details) {
-  const t = new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
-  fetch(`${API}/sendMessage`,{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({chat_id:TG_CHAT,text:`${event}\n\n${details}\n\n⏰ ${t} IST`,parse_mode:'Markdown'})
-  }).catch(()=>{});
+async function tgAnswerCb(cbQueryId, text){
+  return tgFetch('answerCallbackQuery',{ callback_query_id:cbQueryId, text });
 }
 
-async function tgAnswerCallback(callbackQueryId, text) {
-  await fetch(`${API}/answerCallbackQuery`,{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({callback_query_id:callbackQueryId,text})
-  }).catch(()=>{});
+async function tgEdit(msgId, text){
+  return tgFetch('editMessageText',{ chat_id:TG_CHAT, message_id:msgId, text, parse_mode:'Markdown' });
 }
 
-async function tgEditMessage(msgId, newText) {
-  await fetch(`${API}/editMessageText`,{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({chat_id:TG_CHAT,message_id:msgId,text:newText,parse_mode:'Markdown'})
-  }).catch(()=>{});
+// ═══════════════════════════════════════════════════════
+// MASTER POLL — single interval handles EVERYTHING
+// Callbacks (approve/reject) + Admin replies → user chat
+// This is the key fix: one loop, not many competing ones
+// ═══════════════════════════════════════════════════════
+function startMasterPoll(){
+  if(masterPollIv) clearInterval(masterPollIv);
+  masterPollIv = setInterval(masterPollTick, 2500);
 }
 
-let lastUpdateId = parseInt(localStorage.getItem('lastUpdateId')||'0');
+async function masterPollTick(){
+  // Only poll if a deal is open and we have an order
+  if(!openId) return;
+  const o = orders.find(x=>x.id==openId);
+  if(!o) return;
+  const state = getChatState(openId);
+  if(!state) return;
 
-function saveLastUpdateId(id){
-  lastUpdateId = id;
-  localStorage.setItem('lastUpdateId', id);
-}
+  let updates;
+  try {
+    const res  = await fetch(`${API}/getUpdates?offset=${lastUpdateId+1}&timeout=1&allowed_updates=["message","callback_query"]`);
+    const data = await res.json();
+    if(!data.ok) return;
+    updates = data.result;
+  } catch(e){ return; }
 
-// ─── UNIFIED POLL: handles callbacks AND reply messages ────
-function startPolling(callbackId, onApprove, onReject, tgMsgId) {
-  const iv = setInterval(async () => {
-    try {
-      const res  = await fetch(`${API}/getUpdates?offset=${lastUpdateId+1}&timeout=2`);
-      const data = await res.json();
-      if(!data.ok || !data.result.length) return;
+  if(!updates || updates.length===0) return;
 
-      for(const update of data.result) {
-        saveLastUpdateId(update.update_id);
-        const cb  = update.callback_query;
-        const msg = update.message;
+  for(const update of updates){
+    const uid = update.update_id;
+    saveLastUpdateId(uid); // advance cursor
 
-        // ── Admin reply to a trade message → show in chat ──
-        if(msg && msg.reply_to_message && tgMsgId && msg.reply_to_message.message_id === tgMsgId && openId) {
-          const o = orders.find(x=>x.id==openId);
-          if(o){
-            const text = msg.text||'[media]';
-            appendChatMsg('them', o.merchant, text);
-            persistChatMsg(openId,'them',o.merchant,text);
-          }
-          continue;
-        }
+    const cb  = update.callback_query;
+    const msg = update.message;
 
-        // ── Also show any reply to any known trade message ──
-        if(msg && msg.reply_to_message && openId) {
-          const state = getChatState(openId);
-          if(state && state.tgMsgId && msg.reply_to_message.message_id === state.tgMsgId) {
-            const o = orders.find(x=>x.id==openId);
-            if(o){
-              const text = msg.text||'[media]';
-              appendChatMsg('them',o.merchant,text);
-              persistChatMsg(openId,'them',o.merchant,text);
-            }
-          }
-        }
+    // ── 1. ADMIN INLINE BUTTON (approve / reject) ──────
+    if(cb && state.cbId){
+      const data = cb.data || '';
 
-        // ── Inline button callbacks ──
-        if(!cb) continue;
-        if(cb.data === `approve_${callbackId}`) {
-          clearInterval(iv);
-          await tgAnswerCallback(cb.id,'✅ Approved!');
-          onApprove(cb); return;
-        }
-        if(cb.data === `reject_${callbackId}`) {
-          clearInterval(iv);
-          await tgAnswerCallback(cb.id,'❌ Rejected!');
-          onReject(cb); return;
+      if(data === `approve_${state.cbId}`){
+        await tgAnswerCb(cb.id, '✅ Approved!');
+        handleTradeApprove(openId, o, state);
+        return; // stop processing this tick
+      }
+
+      if(data === `reject_${state.cbId}`){
+        await tgAnswerCb(cb.id, '❌ Rejected!');
+        handleTradeReject(openId, o, state);
+        return;
+      }
+    }
+
+    // ── 2. ADMIN TEXT REPLY → show in user chat ────────
+    // Strategy: catch ANY message sent to TG_CHAT from
+    // admin that is NOT a bot command and NOT the same
+    // message we sent. We identify it belongs to this
+    // order by checking if it's a reply to our tgMsgId
+    // OR if the message text contains the order ID.
+    if(msg && msg.chat && String(msg.chat.id) === String(TG_CHAT)){
+      const text = msg.text || msg.caption || '';
+      const fromBot = msg.from && msg.from.is_bot;
+
+      // Skip: empty, from bot itself, or is a command
+      if(!text || fromBot || text.startsWith('/')) continue;
+
+      let isForThisOrder = false;
+
+      // ── KEY FIX: only consider messages sent AFTER the trade notification ──
+      // state.tgMsgId is the message_id of the trade alert we sent.
+      // Telegram message_ids are sequential — any reply/message from admin
+      // must have a higher message_id than our trade notification.
+      if(state.tgMsgId && msg.message_id <= state.tgMsgId) continue;
+
+      // Check 1: is a direct reply to our specific trade message (best signal)
+      if(state.tgMsgId && msg.reply_to_message){
+        if(msg.reply_to_message.message_id === state.tgMsgId){
+          isForThisOrder = true;
         }
       }
-    } catch(e){}
-  }, 2500);
-  return iv;
-}
 
-// ─── TG REPLY BRIDGE (background, for when deal is open) ──
-// Polls for replies even when not waiting for approve/reject
-function startReplyBridge(tgMsgId, orderId) {
-  stopReplyBridge();
-  tgReplyBridgeInterval = setInterval(async () => {
-    if(!openId || openId !== orderId){ stopReplyBridge(); return; }
-    try {
-      const res  = await fetch(`${API}/getUpdates?offset=${lastUpdateId+1}&timeout=2`);
-      const data = await res.json();
-      if(!data.ok || !data.result.length) return;
-      for(const update of data.result){
-        saveLastUpdateId(update.update_id);
-        const msg = update.message;
-        if(msg && msg.reply_to_message && msg.reply_to_message.message_id === tgMsgId){
-          const o = orders.find(x=>x.id==orderId);
-          if(o){
-            const text = msg.text||'[media]';
-            appendChatMsg('them',o.merchant,text);
-            persistChatMsg(orderId,'them',o.merchant,text);
-          }
-        }
+      // Check 2: message contains the order ID as text (fallback for non-reply)
+      if(!isForThisOrder && text.includes(String(o.id))){
+        isForThisOrder = true;
       }
-    } catch(e){}
-  }, 2500);
-}
-function stopReplyBridge(){ if(tgReplyBridgeInterval){ clearInterval(tgReplyBridgeInterval); tgReplyBridgeInterval=null; } }
 
-// ─── CHAT PERSISTENCE HELPERS ─────────────────────────────
-function persistChatMsg(orderId, type, sender, text){
-  const state = getChatState(orderId) || {messages:[], dealState:{}, tgMsgId:null, cbId:null, upiSubmitted:false};
-  state.messages.push({type,sender,text,ts:Date.now()});
+      // Check 3: message contains UID (second fallback)
+      if(!isForThisOrder && text.includes(userUID)){
+        isForThisOrder = true;
+      }
+
+      if(isForThisOrder){
+        // Fix 2: Deduplicate — skip if already shown
+        const tgId = msg.message_id;
+        const seen = state.seenMsgIds || [];
+        if(seen.includes(tgId)) continue;
+
+        // Fix 1: Strip "#orderId" prefix that admin types for routing
+        // e.g. "#415415794 hello bro" → "hello bro"
+        let cleanText = text.replace(new RegExp(`^#?${o.id}[\\s:,-]*`, 'i'), '').trim();
+        cleanText = cleanText.replace(new RegExp(`^${userUID}[\\s:,-]*`, 'i'), '').trim();
+        if(!cleanText) continue; // nothing left after stripping, skip
+
+        appendChatMsg('them', o.merchant, cleanText);
+        persistChatMsg(openId, 'them', o.merchant, cleanText, tgId);
+        setBridgeLive(true);
+        toast('info','New Message', o.merchant+' replied.');
+      }
+    }
+  }
+}
+
+function setBridgeLive(live){
+  const dot  = document.getElementById('bridgeDot');
+  const text = document.getElementById('bridgeStatusText');
+  if(!dot || !text) return;
+  if(live){
+    dot.classList.add('live');
+    text.innerText = 'Encrypted chat until disute';
+    text.style.color = 'var(--g)';
+  } else {
+    dot.classList.remove('live');
+    text.innerText = 'merchant is online.';
+    text.style.color = '#555';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// TRADE APPROVE / REJECT HANDLERS (called from poll)
+// ═══════════════════════════════════════════════════════
+async function handleTradeApprove(id, o, state){
+  document.getElementById('tradePendingBox').style.display='none';
+  if(state.tgMsgId) await tgEdit(state.tgMsgId,
+    `✅ *TRADE COMPLETE*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\`\nUSDT: *${o.usdt.toFixed(2)} USDT*`);
+  completeTrade(id, o.mode);
+}
+
+async function handleTradeReject(id, o, state){
+  document.getElementById('tradePendingBox').style.display='none';
+  const mb = document.getElementById('dealMainBtn');
+
+  if(state.tgMsgId) await tgEdit(state.tgMsgId,
+    `❌ *TRADE REJECTED*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\``);
+
+  if(o.mode==='BUY'){
+    mb.innerText='I HAVE PAID'; mb.disabled=false;
+    mb.className='main-btn btn-g'; mb.style.opacity='1';
+    document.getElementById('statusTag').innerText='Payment Not Verified';
+    const rm='Payment NOT received in my bank. Please check and retry.';
+    botMsg(o.merchant, rm);
+    persistChatMsg(id,'them',o.merchant,rm);
+    setTimeout(()=>cancelBySystem(id), 4000);
+  } else {
+    balance+=o.usdt; updateBal();
+    cancelBySystem(id, true);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// CHAT PERSISTENCE
+// ═══════════════════════════════════════════════════════
+function persistChatMsg(orderId, type, sender, text, tgMsgId=null){
+  const state = getChatState(orderId) || {messages:[], tgMsgId:null, cbId:null, dealStage:'init', upiSubmitted:false, seenMsgIds:[]};
+  state.messages.push({ type, sender, text, ts:Date.now() });
+  if(tgMsgId){
+    if(!state.seenMsgIds) state.seenMsgIds=[];
+    state.seenMsgIds.push(tgMsgId);
+  }
   saveChatState(orderId, state);
 }
 
@@ -612,33 +711,37 @@ function appendChatMsg(type, sender, text){
   const box = document.getElementById('chatBox');
   const d   = document.createElement('div');
   d.className = type==='me' ? 'msg-me' : 'msg-them';
-  d.innerHTML = `<div class="msg-sender">${sender}</div>${text}`;
+  d.innerHTML = `<div class="msg-sender">${escHtml(sender)}</div>${escHtml(text)}`;
   box.appendChild(d);
   box.scrollTop = box.scrollHeight;
 }
 
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 function renderSavedChat(messages){
   const box = document.getElementById('chatBox');
-  box.innerHTML = `<div class="escrow-note">Global Escrow Security Protocol Active</div>`;
-  for(const m of messages){
+  box.innerHTML = `<div class="escrow-note">🔒Live be respectfull</div>`;
+  for(const m of (messages||[])){
     const d = document.createElement('div');
     d.className = m.type==='me' ? 'msg-me' : 'msg-them';
-    d.innerHTML = `<div class="msg-sender">${m.sender}</div>${m.text}`;
+    d.innerHTML = `<div class="msg-sender">${escHtml(m.sender)}</div>${escHtml(m.text)}`;
     box.appendChild(d);
   }
   box.scrollTop = box.scrollHeight;
 }
 
-// ─── MARKET ───────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+// MARKET
+// ═══════════════════════════════════════════════════════
 function setMode(m){
   mode=m;
-  document.getElementById('btnBuy').className =m==='BUY'?'tbuy on':'tbuy';
-  document.getElementById('btnSell').className=m==='SELL'?'tsell on':'tsell';
+  document.getElementById('btnBuy').className  = m==='BUY'  ? 'tbuy on'  : 'tbuy';
+  document.getElementById('btnSell').className = m==='SELL' ? 'tsell on' : 'tsell';
   renderGrid();
 }
 
 function renderGrid(){
-  const g=document.getElementById('adGrid');g.innerHTML='';
+  const g=document.getElementById('adGrid'); g.innerHTML='';
   const list = mode==='BUY' ? BUY_MERCHANTS : SELL_MERCHANTS;
   for(let i=0;i<10;i++){
     const name=list[i%list.length];
@@ -677,7 +780,7 @@ function prepTrade(name,rate,min,max){
     document.getElementById('rcvUnit').innerText='USDT';
     document.getElementById('limitInfo').innerText=`Limit: ₹${min.toLocaleString()} – ₹${max.toLocaleString()}`;
     document.getElementById('actBtn').className='main-btn btn-g';
-  }else{
+  } else {
     document.getElementById('actInputLabel').innerText='Enter USDT to Sell';
     document.getElementById('rcvLabel').innerText='You Receive (INR)';
     document.getElementById('rcvUnit').innerText='INR';
@@ -693,31 +796,45 @@ function calcTrade(){
 }
 
 function initTrade(){
-  const v=parseFloat(document.getElementById('actInp').value);
+  const v  =parseFloat(document.getElementById('actInp').value);
   const rcv=parseFloat(document.getElementById('actRcv').innerText);
-  if(!v)return toast('error','Error','Enter an amount.');
+  if(!v) return toast('error','Error','Enter an amount.');
   if(mode==='BUY'){
-    if(v<selTrade.min)return toast('error','Limit Error',`Minimum ₹${selTrade.min}`);
-    if(v>selTrade.max)return toast('error','Limit Error',`Maximum ₹${selTrade.max}`);
-  }else{
-    if(v<selTrade.min)return toast('error','Limit Error',`Minimum $${selTrade.min} USDT`);
-    if(v>selTrade.max)return toast('error','Limit Error',`Maximum $${selTrade.max} USDT`);
-    if(v>balance)return toast('error','Insufficient Balance','Not enough USDT.');
-    balance-=v;updateBal();
+    if(v<selTrade.min) return toast('error','Limit Error',`Minimum ₹${selTrade.min}`);
+    if(v>selTrade.max) return toast('error','Limit Error',`Maximum ₹${selTrade.max}`);
+  } else {
+    if(v<selTrade.min) return toast('error','Limit Error',`Minimum $${selTrade.min} USDT`);
+    if(v>selTrade.max) return toast('error','Limit Error',`Maximum $${selTrade.max} USDT`);
+    if(v>balance) return toast('error','Insufficient Balance','Not enough USDT.');
+    balance-=v; updateBal();
   }
-  const ord={id:Math.floor(Math.random()*900000000)+100000000,merchant:selTrade.name,inr:mode==='BUY'?v:Math.round(rcv),usdt:mode==='BUY'?rcv:v,rate:selTrade.rate,mode,status:'PENDING',time:Date.now(),uid:userUID};
-  orders.unshift(ord);saveOrders();
+  const ord={
+    id:Math.floor(Math.random()*900000000)+100000000,
+    merchant:selTrade.name, inr:mode==='BUY'?v:Math.round(rcv),
+    usdt:mode==='BUY'?rcv:v, rate:selTrade.rate,
+    mode, status:'PENDING', time:Date.now(), uid:userUID
+  };
+  orders.unshift(ord); saveOrders();
   closeOverlay('actionOverlay');
-  // Initialize fresh chat state for new order
-  saveChatState(ord.id, {messages:[], dealState:{stage:'init'}, tgMsgId:null, cbId:null, upiSubmitted:false});
-  tg('🆕 *NEW ORDER*',`UID: \`${userUID}\`\nOrder: \`#${ord.id}\`\nMode: *${ord.mode}*\nMerchant: *${ord.merchant}*\nINR: ₹${ord.inr.toLocaleString()}\nUSDT: *${ord.usdt.toFixed(2)} USDT*\nRate: ₹${ord.rate}`);
+
+  // Initialize fresh chat state
+  saveChatState(ord.id,{
+    messages:[], tgMsgId:null, cbId:null,
+    dealStage:'init', upiSubmitted:false, seenMsgIds:[]
+  });
+
+  const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
+  tgSend(`🆕 *NEW ORDER*\n\nUID: \`${userUID}\`\nOrder: \`#${ord.id}\`\nMode: *${ord.mode}*\nMerchant: *${ord.merchant}*\nINR: ₹${ord.inr.toLocaleString()}\nUSDT: *${ord.usdt.toFixed(2)} USDT*\nRate: ₹${ord.rate}\n⏰ ${t} IST\n\n_Use order ID in replies to route messages to user chat_`);
+
   openDeal(ord.id, true);
 }
 
-// ─── DEPOSIT FLOW ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+// DEPOSIT FLOW
+// ═══════════════════════════════════════════════════════
 function showQR(){
   const amt=document.getElementById('depAmt').value;
-  if(!amt||amt<=0)return toast('error','Error','Enter amount.');
+  if(!amt||amt<=0) return toast('error','Error','Enter amount.');
   document.getElementById('dep1').style.display='none';
   document.getElementById('dep2').style.display='block';
   document.getElementById('qrImg').src=`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=0x6473d05d310C09199FacB9F738Cac86e04b68047`;
@@ -728,64 +845,145 @@ async function confirmDeposit(){
   document.getElementById('dep2').style.display='none';
   document.getElementById('dep3').style.display='block';
   document.getElementById('dep3Sub').innerText=`${amt} USDT — Verifying on-chain...\nPlease keep this window open.`;
+
   const cbId='dep_'+Date.now();
-  const msgText=`📥 *DEPOSIT REQUEST*\n\n👤 UID: \`${userUID}\`\n💰 Amount: *${amt} USDT*\n📍 Address: \`0x6473d05d310C09199FacB9F738Cac86e04b68047\`\n\nTap a button to approve or reject:`;
-  const msgId=await tgSendWithButtons(msgText,cbId);
-  const iv=startPolling(cbId,
-    async()=>{balance+=amt;updateBal();addHist('DEPOSIT',amt,'COMPLETED');if(msgId)await tgEditMessage(msgId,`✅ *DEPOSIT APPROVED*\n\nUID: \`${userUID}\`\nAmount: *${amt} USDT*`);closeOverlay('depOverlay');resetDepOverlay();showAlert('success','DEPOSIT APPROVED',amt+' USDT credited to your wallet!');},
-    async()=>{addHist('DEPOSIT',amt,'REJECTED');if(msgId)await tgEditMessage(msgId,`❌ *DEPOSIT REJECTED*\n\nUID: \`${userUID}\`\nAmount: *${amt} USDT*`);closeOverlay('depOverlay');resetDepOverlay();showAlert('error','DEPOSIT REJECTED','Transaction could not be verified.');}
-  , null);
-  pendingAction={type:'dep',amt,iv};
+  const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
+  const msgText=`📥 *DEPOSIT REQUEST*\n\n👤 UID: \`${userUID}\`\n💰 Amount: *${amt} USDT*\n📍 Address: \`0x6473d05d310C09199FacB9F738Cac86e04b68047\`\n⏰ ${t} IST\n\n✅ APPROVE = credit USDT\n❌ REJECT = decline`;
+  const msgId=await tgSendWithButtons(msgText, cbId);
+
+  // Store in localStorage so masterPoll can catch it
+  localStorage.setItem('dep_pending', JSON.stringify({cbId, msgId, amt}));
+  pendingAction={type:'dep', amt, cbId, msgId};
+
+  // Deposit uses its own small poll (separate from trade)
+  const iv=setInterval(async()=>{
+    try{
+      const res=await fetch(`${API}/getUpdates?offset=${lastUpdateId+1}&timeout=1&allowed_updates=["callback_query"]`);
+      const data=await res.json();
+      if(!data.ok||!data.result.length) return;
+      for(const update of data.result){
+        saveLastUpdateId(update.update_id);
+        const cb=update.callback_query;
+        if(!cb) continue;
+        if(cb.data===`approve_${cbId}`){
+          clearInterval(iv);
+          await tgAnswerCb(cb.id,'✅ Approved!');
+          balance+=amt; updateBal(); addHist('DEPOSIT',amt,'COMPLETED');
+          if(msgId) await tgEdit(msgId,`✅ *DEPOSIT APPROVED*\n\nUID: \`${userUID}\`\nAmount: *${amt} USDT*`);
+          localStorage.removeItem('dep_pending');
+          closeOverlay('depOverlay'); resetDepOverlay();
+          showAlert('success','DEPOSIT APPROVED',amt+' USDT credited to your wallet!');
+          return;
+        }
+        if(cb.data===`reject_${cbId}`){
+          clearInterval(iv);
+          await tgAnswerCb(cb.id,'❌ Rejected!');
+          addHist('DEPOSIT',amt,'REJECTED');
+          if(msgId) await tgEdit(msgId,`❌ *DEPOSIT REJECTED*\n\nUID: \`${userUID}\`\nAmount: *${amt} USDT*`);
+          localStorage.removeItem('dep_pending');
+          closeOverlay('depOverlay'); resetDepOverlay();
+          showAlert('error','DEPOSIT REJECTED','Transaction could not be verified.');
+          return;
+        }
+      }
+    }catch(e){}
+  }, 2500);
+  pendingAction.iv=iv;
 }
 
-function cancelDepPending(){if(pendingAction&&pendingAction.iv)clearInterval(pendingAction.iv);pendingAction=null;resetDepOverlay();closeOverlay('depOverlay');}
-function resetDepOverlay(){document.getElementById('dep1').style.display='block';document.getElementById('dep2').style.display='none';document.getElementById('dep3').style.display='none';}
+function cancelDepPending(){
+  if(pendingAction&&pendingAction.iv) clearInterval(pendingAction.iv);
+  pendingAction=null; localStorage.removeItem('dep_pending');
+  resetDepOverlay(); closeOverlay('depOverlay');
+}
+function resetDepOverlay(){
+  document.getElementById('dep1').style.display='block';
+  document.getElementById('dep2').style.display='none';
+  document.getElementById('dep3').style.display='none';
+}
 
-// ─── WITHDRAW FLOW ────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+// WITHDRAW FLOW
+// ═══════════════════════════════════════════════════════
 async function doWithdraw(){
   const addr=document.getElementById('witAddr').value.trim();
-  const amt=parseFloat(document.getElementById('witAmt').value);
-  if(!addr||addr.length<20)return toast('error','Invalid Address','Enter a valid wallet address.');
-  if(!amt||amt>balance)return toast('error','Insufficient Balance','Not enough USDT.');
-  if(!confirm('Confirm withdrawal of '+amt+' USDT?'))return;
-  balance-=amt;updateBal();
+  const amt =parseFloat(document.getElementById('witAmt').value);
+  if(!addr||addr.length<20) return toast('error','Invalid Address','Enter a valid wallet address.');
+  if(!amt||amt>balance) return toast('error','Insufficient Balance','Not enough USDT.');
+  if(!confirm('Confirm withdrawal of '+amt+' USDT?')) return;
+  balance-=amt; updateBal();
   document.getElementById('wit1').style.display='none';
   document.getElementById('wit2').style.display='block';
   document.getElementById('wit2Sub').innerText=`${amt} USDT → ${addr.slice(0,18)}...\nPlease keep this window open.`;
+
   const cbId='wit_'+Date.now();
-  const msgText=`💼 *WITHDRAWAL REQUEST*\n\n👤 UID: \`${userUID}\`\n💰 Amount: *${amt} USDT*\n📤 Address: \`${addr}\`\n\nTap a button to approve or reject:`;
-  const msgId=await tgSendWithButtons(msgText,cbId);
-  const iv=startPolling(cbId,
-    async()=>{addHist('WITHDRAW',amt,'COMPLETED');if(msgId)await tgEditMessage(msgId,`✅ *WITHDRAWAL APPROVED*\n\nUID: \`${userUID}\`\nAmount: *${amt} USDT*`);closeOverlay('witOverlay');resetWitOverlay();showAlert('success','WITHDRAWAL SENT',amt+' USDT sent to '+addr.slice(0,14)+'...');},
-    async()=>{balance+=amt;updateBal();addHist('WITHDRAW',amt,'REJECTED');if(msgId)await tgEditMessage(msgId,`❌ *WITHDRAWAL REJECTED*\n\nUID: \`${userUID}\`\n🔴 Funds returned`);closeOverlay('witOverlay');resetWitOverlay();showAlert('error','WITHDRAWAL REJECTED','Rejected. Funds returned to your wallet.');}
-  , null);
+  const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
+  const msgText=`💼 *WITHDRAWAL REQUEST*\n\n👤 UID: \`${userUID}\`\n💰 Amount: *${amt} USDT*\n📤 Address: \`${addr}\`\n⏰ ${t} IST\n\n✅ APPROVE = send funds\n❌ REJECT = refund`;
+  const msgId=await tgSendWithButtons(msgText, cbId);
+
+  const iv=setInterval(async()=>{
+    try{
+      const res=await fetch(`${API}/getUpdates?offset=${lastUpdateId+1}&timeout=1&allowed_updates=["callback_query"]`);
+      const data=await res.json();
+      if(!data.ok||!data.result.length) return;
+      for(const update of data.result){
+        saveLastUpdateId(update.update_id);
+        const cb=update.callback_query;
+        if(!cb) continue;
+        if(cb.data===`approve_${cbId}`){
+          clearInterval(iv);
+          await tgAnswerCb(cb.id,'✅ Approved!');
+          addHist('WITHDRAW',amt,'COMPLETED');
+          if(msgId) await tgEdit(msgId,`✅ *WITHDRAWAL APPROVED*\n\nUID: \`${userUID}\`\nAmount: *${amt} USDT*`);
+          closeOverlay('witOverlay'); resetWitOverlay();
+          showAlert('success','WITHDRAWAL SENT',amt+' USDT sent to '+addr.slice(0,14)+'...');
+          return;
+        }
+        if(cb.data===`reject_${cbId}`){
+          clearInterval(iv);
+          await tgAnswerCb(cb.id,'❌ Rejected!');
+          balance+=amt; updateBal(); addHist('WITHDRAW',amt,'REJECTED');
+          if(msgId) await tgEdit(msgId,`❌ *WITHDRAWAL REJECTED*\n\nUID: \`${userUID}\`\n🔴 Funds returned`);
+          closeOverlay('witOverlay'); resetWitOverlay();
+          showAlert('error','WITHDRAWAL REJECTED','Rejected. Funds returned to your wallet.');
+          return;
+        }
+      }
+    }catch(e){}
+  }, 2500);
   pendingAction={type:'wit',amt,addr,iv};
 }
 
-function cancelWitPending(){if(pendingAction){if(pendingAction.iv)clearInterval(pendingAction.iv);balance+=pendingAction.amt;updateBal();pendingAction=null;}resetWitOverlay();closeOverlay('witOverlay');}
-function resetWitOverlay(){document.getElementById('wit1').style.display='block';document.getElementById('wit2').style.display='none';}
+function cancelWitPending(){
+  if(pendingAction){if(pendingAction.iv)clearInterval(pendingAction.iv);balance+=pendingAction.amt;updateBal();pendingAction=null;}
+  resetWitOverlay(); closeOverlay('witOverlay');
+}
+function resetWitOverlay(){
+  document.getElementById('wit1').style.display='block';
+  document.getElementById('wit2').style.display='none';
+}
 
-// ─── DEAL PAGE ────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+// DEAL PAGE
+// ═══════════════════════════════════════════════════════
 const MERCHANT_UPIS = { BUY:'navyard@fam', SELL:'navyard@fam' };
 
-// isNew=true means brand-new order (fire welcome bot msgs)
-// isNew=false means re-opening existing (restore state silently)
 function openDeal(id, isNew){
-  const o=orders.find(x=>x.id==id);if(!o)return;
+  const o=orders.find(x=>x.id==id); if(!o) return;
   openId=id;
+
   document.getElementById('dMerch').innerText=o.merchant;
   document.getElementById('dOrdId').innerText='#'+o.id;
   document.getElementById('dInr').innerText='₹'+o.inr.toLocaleString();
   document.getElementById('dUsdt').innerText=o.usdt.toFixed(2)+' USDT';
 
-  // Get persisted chat state
-  let state = getChatState(id);
-  if(!state){ state={messages:[],dealState:{stage:'init'},tgMsgId:null,cbId:null,upiSubmitted:false}; saveChatState(id,state); }
+  let state=getChatState(id);
+  if(!state){ state={messages:[],tgMsgId:null,cbId:null,dealStage:'init',upiSubmitted:false,seenMsgIds:[]}; saveChatState(id,state); }
 
-  // Restore chat messages
   renderSavedChat(state.messages);
+  setBridgeLive(!!state.tgMsgId);
 
-  // Restore UI state
+  // Reset UI
   document.getElementById('tradePendingBox').style.display='none';
   const mb=document.getElementById('dealMainBtn');
 
@@ -794,109 +992,96 @@ function openDeal(id, isNew){
     document.getElementById('sellUpiBox').style.display='none';
     document.getElementById('merchantUpi').innerText=MERCHANT_UPIS.BUY;
     const btn=document.getElementById('upiCopyBtn');
-    btn.classList.remove('copied');btn.innerHTML='<i class="fas fa-copy"></i> COPY';
+    btn.classList.remove('copied'); btn.innerHTML='<i class="fas fa-copy"></i> COPY';
 
-    if(state.dealState.stage==='pending_verify'){
-      // Restore pending state
+    if(state.dealStage==='pending_verify'){
       document.getElementById('statusTag').innerText='Verifying Payment — Admin Review';
       document.getElementById('tradePendingBox').style.display='block';
       document.getElementById('tradePendingTitle').innerText='Payment Verification';
       document.getElementById('tradePendingSub').innerText='Quick review for fair deal. Please stay on this page.';
-      mb.innerText='VERIFYING...';mb.disabled=true;mb.className='main-btn btn-gray';mb.style.opacity='0.6';
-      // Re-attach polling if we have the cbId
-      if(state.cbId){
-        const iv=startPolling(state.cbId,
-          async(cb)=>{ document.getElementById('tradePendingBox').style.display='none'; if(state.tgMsgId)await tgEditMessage(state.tgMsgId,`✅ *TRADE COMPLETE*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\`\nUSDT Credited: *${o.usdt.toFixed(2)} USDT*`); completeTrade(o.id,'BUY'); },
-          async(cb)=>{ document.getElementById('tradePendingBox').style.display='none'; mb.innerText='I HAVE PAID';mb.disabled=false;mb.className='main-btn btn-g';mb.style.opacity='1'; document.getElementById('statusTag').innerText='Payment Not Verified'; if(state.tgMsgId)await tgEditMessage(state.tgMsgId,`❌ *TRADE CANCELED*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\``); botMsg(o.merchant,'Payment NOT received. I checked and found no entry.'); setTimeout(()=>cancelBySystem(o.id),3000); }
-        , state.tgMsgId);
-        pendingAction={type:'trade',iv};
-      }
+      mb.innerText='VERIFYING...'; mb.disabled=true; mb.className='main-btn btn-gray'; mb.style.opacity='0.6';
+      // masterPoll handles approval — nothing extra needed
     } else {
       document.getElementById('statusTag').innerText='Awaiting Your Payment';
-      mb.innerText='I HAVE PAID';mb.className='main-btn btn-g';mb.disabled=false;mb.style.opacity='1';
+      mb.innerText='I HAVE PAID'; mb.className='main-btn btn-g'; mb.disabled=false; mb.style.opacity='1';
       if(isNew){
-        // Only fire auto-msgs for brand new orders
-        setTimeout(()=>{botMsg(o.merchant,"Hi! I'm online. Please pay ₹"+o.inr.toLocaleString()+" to the UPI shown above.");persistChatMsg(id,'them',o.merchant,"Hi! I'm online. Please pay ₹"+o.inr.toLocaleString()+" to the UPI shown above.");},1200);
-        setTimeout(()=>{botMsg(o.merchant,"Once you pay, click 'I HAVE PAID' so I can release your USDT.");persistChatMsg(id,'them',o.merchant,"Once you pay, click 'I HAVE PAID' so I can release your USDT.");},3000);
+        const m1=`Hi! I'm online. Please pay ₹${o.inr.toLocaleString()} to the UPI shown above.`;
+        const m2=`Once you pay, click 'I HAVE PAID' so I can release your USDT.`;
+        setTimeout(()=>{ botMsg(o.merchant,m1); persistChatMsg(id,'them',o.merchant,m1); },1200);
+        setTimeout(()=>{ botMsg(o.merchant,m2); persistChatMsg(id,'them',o.merchant,m2); },3000);
       }
     }
   } else {
-    // SELL mode
     if(state.upiSubmitted){
       document.getElementById('payBox').style.display='none';
       document.getElementById('sellUpiBox').style.display='none';
-      if(state.dealState.stage==='pending_verify'){
+      if(state.dealStage==='pending_verify'){
         document.getElementById('statusTag').innerText='Release Under Admin Review';
         document.getElementById('tradePendingBox').style.display='block';
-        mb.innerText='PROCESSING...';mb.disabled=true;mb.className='main-btn btn-gray';mb.style.opacity='0.6';
-        if(state.cbId){
-          const iv=startPolling(state.cbId,
-            async(cb)=>{ document.getElementById('tradePendingBox').style.display='none'; if(state.tgMsgId)await tgEditMessage(state.tgMsgId,`✅ *TRADE COMPLETE*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\``); completeTrade(o.id,'SELL'); },
-            async(cb)=>{ document.getElementById('tradePendingBox').style.display='none'; balance+=o.usdt;updateBal(); if(state.tgMsgId)await tgEditMessage(state.tgMsgId,`❌ *TRADE CANCELED*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\``); cancelBySystem(o.id,true); }
-          , state.tgMsgId);
-          pendingAction={type:'trade',iv};
-        }
+        mb.innerText='PROCESSING...'; mb.disabled=true; mb.className='main-btn btn-gray'; mb.style.opacity='0.6';
       } else {
         document.getElementById('statusTag').innerText='Waiting for Buyer Payment';
-        mb.innerText='RELEASE USDT';mb.className='main-btn btn-r';mb.disabled=false;mb.style.opacity='1';
+        mb.innerText='RELEASE USDT'; mb.className='main-btn btn-r'; mb.disabled=false; mb.style.opacity='1';
       }
     } else {
       document.getElementById('payBox').style.display='none';
       document.getElementById('sellUpiBox').style.display='block';
       document.getElementById('sellInrAmt').innerText=o.inr.toLocaleString();
       document.getElementById('statusTag').innerText='Enter Your UPI';
-      mb.innerText='RELEASE USDT';mb.className='main-btn btn-r';mb.disabled=true;mb.style.opacity='0.4';
+      mb.innerText='RELEASE USDT'; mb.className='main-btn btn-r'; mb.disabled=true; mb.style.opacity='0.4';
       if(isNew){
-        setTimeout(()=>{botMsg(o.merchant,"Hello! I'm the buyer. Please share your UPI ID so I can pay ₹"+o.inr.toLocaleString()+".");persistChatMsg(id,'them',o.merchant,"Hello! I'm the buyer. Please share your UPI ID so I can pay ₹"+o.inr.toLocaleString()+".");},1500);
+        const m=`Hello! I'm the buyer. Please share your UPI ID so I can pay ₹${o.inr.toLocaleString()}.`;
+        setTimeout(()=>{ botMsg(o.merchant,m); persistChatMsg(id,'them',o.merchant,m); },1500);
       }
     }
   }
 
-  // Start reply bridge so Telegram replies show in chat
-  if(state.tgMsgId){ startReplyBridge(state.tgMsgId, id); }
-
   document.getElementById('dealPage').style.display='flex';
+  // masterPoll is already running — it will pick up messages for openId automatically
 }
 
 function upiChanged(){
   document.getElementById('submitUpiBtn').style.opacity=document.getElementById('upiInp').value.trim().length>3?'1':'0.5';
 }
 
-function submitUPI(){
+async function submitUPI(){
   const upi=document.getElementById('upiInp').value.trim();
-  if(!upi||upi.length<4)return toast('error','Invalid UPI','Enter a valid UPI ID.');
+  if(!upi||upi.length<4) return toast('error','Invalid UPI','Enter a valid UPI ID.');
   const o=orders.find(x=>x.id==openId);
 
-  // Update persisted state
-  const state=getChatState(openId)||{messages:[],dealState:{},tgMsgId:null,cbId:null,upiSubmitted:false};
+  const state=getChatState(openId)||{messages:[],tgMsgId:null,cbId:null,dealStage:'init',upiSubmitted:false,seenMsgIds:[]};
   state.upiSubmitted=true;
-  state.dealState.stage='upi_submitted';
+  state.dealStage='upi_submitted';
   saveChatState(openId,state);
 
-  tg('💳 *SELLER UPI RECEIVED*',`UID: \`${userUID}\`\nOrder: \`#${o.id}\`\nMerchant: *${o.merchant}*\nUSDT: *${o.usdt.toFixed(2)} USDT*\nINR: ₹${o.inr.toLocaleString()}\n📲 UPI: \`${upi}\``);
+  const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
+  tgSend(`💳 *SELLER UPI RECEIVED*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\`\nMerchant: *${o.merchant}*\nUSDT: *${o.usdt.toFixed(2)} USDT*\nINR: ₹${o.inr.toLocaleString()}\n📲 UPI: \`${upi}\`\n⏰ ${t} IST`);
+
   document.getElementById('sellUpiBox').style.display='none';
   document.getElementById('statusTag').innerText='Waiting for Buyer Payment';
-  const mb=document.getElementById('dealMainBtn');mb.disabled=false;mb.style.opacity='1';
+  const mb=document.getElementById('dealMainBtn'); mb.disabled=false; mb.style.opacity='1';
 
-  const m1='Got your UPI: '+upi+'. Sending ₹'+o.inr.toLocaleString()+' now, please hold on.';
-  const m2='Payment initiated from my side. Once you receive INR, click RELEASE USDT.';
-  botMsg(o.merchant,m1);persistChatMsg(openId,'them',o.merchant,m1);
-  setTimeout(()=>{botMsg(o.merchant,m2);persistChatMsg(openId,'them',o.merchant,m2);},5000);
+  const m1=`Got your UPI: ${upi}. Sending ₹${o.inr.toLocaleString()} now, please hold on.`;
+  const m2=`Payment initiated from my side. Once you receive INR, click RELEASE USDT.`;
+  botMsg(o.merchant,m1); persistChatMsg(openId,'them',o.merchant,m1);
+  setTimeout(()=>{ botMsg(o.merchant,m2); persistChatMsg(openId,'them',o.merchant,m2); },5000);
 
-  userMsg('You','My UPI: '+upi);persistChatMsg(openId,'me','You','My UPI: '+upi);
+  userMsg('You','My UPI: '+upi); persistChatMsg(openId,'me','You','My UPI: '+upi);
   toast('info','UPI Submitted','Waiting for buyer to transfer INR.');
 }
 
-// ─── MAIN ACTION ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+// MAIN TRADE ACTION
+// ═══════════════════════════════════════════════════════
 async function handleMainAction(){
-  const o=orders.find(x=>x.id==openId);if(!o)return;
+  const o=orders.find(x=>x.id==openId); if(!o) return;
   const mb=document.getElementById('dealMainBtn');
-  const state=getChatState(openId)||{messages:[],dealState:{},tgMsgId:null,cbId:null,upiSubmitted:false};
+  const state=getChatState(openId)||{messages:[],tgMsgId:null,cbId:null,dealStage:'init',upiSubmitted:false,seenMsgIds:[]};
 
   if(o.mode==='BUY'){
-    const txt='I have paid ₹'+o.inr.toLocaleString()+'. Please release USDT.';
-    userMsg('You',txt);persistChatMsg(openId,'me','You',txt);
-    mb.innerText='VERIFYING...';mb.disabled=true;mb.className='main-btn btn-gray';mb.style.opacity='0.6';
+    const txt=`I have paid ₹${o.inr.toLocaleString()}. Please release USDT.`;
+    userMsg('You',txt); persistChatMsg(openId,'me','You',txt);
+    mb.innerText='VERIFYING...'; mb.disabled=true; mb.className='main-btn btn-gray'; mb.style.opacity='0.6';
     document.getElementById('statusTag').innerText='Verifying Payment — Admin Review';
     document.getElementById('tradePendingBox').style.display='block';
     document.getElementById('tradePendingTitle').innerText='Payment Verification';
@@ -911,46 +1096,27 @@ async function handleMainAction(){
 📋 Order: \`#${o.id}\`
 🏪 Merchant: *${o.merchant}*
 💵 INR Paid: *₹${o.inr.toLocaleString()}*
-🪙 USDT Expected: *${o.usdt.toFixed(2)} USDT*
+🪙 USDT: *${o.usdt.toFixed(2)} USDT*
 📲 UPI: \`${MERCHANT_UPIS.BUY}\`
 ⏰ ${t} IST
 
-✅ APPROVE = TRADE COMPLETE (credit USDT)
-❌ REJECT = TRADE CANCELED (no credit)
-💬 Reply to this message → appears in user's P2P chat`;
+✅ APPROVE = TRADE COMPLETE
+❌ REJECT = TRADE CANCELED
+💬 *Reply to this message* to chat with user`;
 
-    const msgId=await tgSendWithButtons(msgText,cbId);
+    const msgId=await tgSendWithButtons(msgText, cbId);
 
-    // Persist state so re-opening works
-    state.dealState.stage='pending_verify';
+    // Save so masterPoll can handle it
+    state.dealStage='pending_verify';
     state.cbId=cbId;
     state.tgMsgId=msgId;
     saveChatState(openId,state);
-
-    // Start reply bridge
-    if(msgId) startReplyBridge(msgId, openId);
-
-    const iv=startPolling(cbId,
-      async(cb)=>{
-        document.getElementById('tradePendingBox').style.display='none';
-        if(msgId)await tgEditMessage(msgId,`✅ *TRADE COMPLETE*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\`\nUSDT: *${o.usdt.toFixed(2)} USDT*`);
-        completeTrade(o.id,'BUY');
-      },
-      async(cb)=>{
-        document.getElementById('tradePendingBox').style.display='none';
-        mb.innerText='I HAVE PAID';mb.disabled=false;mb.className='main-btn btn-g';mb.style.opacity='1';
-        document.getElementById('statusTag').innerText='Payment Not Verified';
-        if(msgId)await tgEditMessage(msgId,`❌ *TRADE CANCELED*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\``);
-        const rm='Payment NOT received in my bank. I checked and found no entry.';
-        botMsg(o.merchant,rm);persistChatMsg(openId,'them',o.merchant,rm);
-        setTimeout(()=>cancelBySystem(o.id),3000);
-      }
-    , msgId);
-    pendingAction={type:'trade',iv};
+    setBridgeLive(true);
 
   } else {
-    if(!confirm('CONFIRM: Have you received INR payment? Click OK to release USDT permanently.'))return;
-    mb.innerText='PROCESSING...';mb.disabled=true;mb.className='main-btn btn-gray';mb.style.opacity='0.6';
+    // SELL
+    if(!confirm('CONFIRM: Have you received INR payment? Click OK to release USDT permanently.')) return;
+    mb.innerText='PROCESSING...'; mb.disabled=true; mb.className='main-btn btn-gray'; mb.style.opacity='0.6';
     document.getElementById('statusTag').innerText='Release Under Admin Review';
     document.getElementById('tradePendingBox').style.display='block';
     document.getElementById('tradePendingTitle').innerText='USDT Release Pending';
@@ -969,130 +1135,106 @@ async function handleMainAction(){
 ⏰ ${t} IST
 
 ✅ APPROVE = TRADE COMPLETE
-❌ REJECT = TRADE CANCELED (refund USDT)
-💬 Reply to this message → appears in user's P2P chat`;
+❌ REJECT = REFUND USDT
+💬 *Reply to this message* to chat with user`;
 
-    const msgId=await tgSendWithButtons(msgText,cbId);
+    const msgId=await tgSendWithButtons(msgText, cbId);
 
-    state.dealState.stage='pending_verify';
+    state.dealStage='pending_verify';
     state.cbId=cbId;
     state.tgMsgId=msgId;
     saveChatState(openId,state);
-
-    if(msgId) startReplyBridge(msgId, openId);
-
-    const iv=startPolling(cbId,
-      async(cb)=>{
-        document.getElementById('tradePendingBox').style.display='none';
-        if(msgId)await tgEditMessage(msgId,`✅ *TRADE COMPLETE*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\``);
-        completeTrade(o.id,'SELL');
-      },
-      async(cb)=>{
-        document.getElementById('tradePendingBox').style.display='none';
-        balance+=o.usdt;updateBal();
-        if(msgId)await tgEditMessage(msgId,`❌ *TRADE CANCELED*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\``);
-        cancelBySystem(o.id,true);
-      }
-    , msgId);
-    pendingAction={type:'trade',iv};
+    setBridgeLive(true);
   }
 }
 
-function sendUserMsg(){
-  const inp=document.getElementById('msgInp');const txt=inp.value.trim();if(!txt)return;inp.value='';
-  const o=orders.find(x=>x.id==openId);
-  userMsg('You',txt);persistChatMsg(openId,'me','You',txt);
+// ═══════════════════════════════════════════════════════
+// USER SENDS CHAT MESSAGE
+// ═══════════════════════════════════════════════════════
+async function sendUserMsg(){
+  const inp=document.getElementById('msgInp');
+  const txt=inp.value.trim(); if(!txt) return; inp.value='';
+  const o=orders.find(x=>x.id==openId); if(!o) return;
 
-  // Also forward user message to Telegram as a regular message
+  userMsg('You',txt);
+  persistChatMsg(openId,'me','You',txt);
+
+  // Forward to Telegram — reply to the trade message so admin sees context
   const state=getChatState(openId);
   const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
-  fetch(`${API}/sendMessage`,{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      chat_id:TG_CHAT,
-      text:`💬 *USER CHAT MSG*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\`\nMessage: "${txt}"\n⏰ ${t} IST\n\n_Reply to this to send back to user_`,
-      parse_mode:'Markdown',
-      ...(state&&state.tgMsgId?{reply_to_message_id:state.tgMsgId}:{})
-    })
-  }).catch(()=>{});
+  const payload = {
+    chat_id: TG_CHAT,
+    text: `💬 *USER MSG*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\`\nMsg: "${txt}"\n⏰ ${t} IST`,
+    parse_mode: 'Markdown'
+  };
+  // Reply to trade message if it exists (threads the conversation)
+  if(state && state.tgMsgId) payload.reply_to_message_id = state.tgMsgId;
 
-  setTimeout(()=>{
-    let reply;
-    if(o.mode==='BUY'){
-      if(/hi|hello/i.test(txt)) reply='Hello! Pay exactly ₹'+o.inr.toLocaleString()+' to the UPI above.';
-      else if(/paid|done|sent/i.test(txt)) reply='Checking my bank now...';
-      else reply='I am verifying the payment. Please stay online.';
-    }else{
-      if(txt.includes('@')) reply='Got UPI: '+txt+'. Sending payment now.';
-      else reply='Please share your UPI ID so I can send payment.';
-    }
-    botMsg(o.merchant,reply);persistChatMsg(openId,'them',o.merchant,reply);
-  },1800);
+  tgFetch('sendMessage', payload).catch(()=>{});
+
+  // Auto-reply disabled — admin replies via Telegram bridge only
 }
 
-function botMsg(sender,msg){
-  appendChatMsg('them',sender,msg);
-}
-function userMsg(sender,msg){
-  appendChatMsg('me',sender,msg);
-}
+function botMsg(sender,msg){ appendChatMsg('them',sender,msg); }
+function userMsg(sender,msg){ appendChatMsg('me',sender,msg); }
 
+// ═══════════════════════════════════════════════════════
+// TRADE COMPLETE / CANCEL
+// ═══════════════════════════════════════════════════════
 function cancelBySystem(id,alreadyRefunded=false){
-  const idx=orders.findIndex(x=>x.id==id);if(idx===-1)return;
+  const idx=orders.findIndex(x=>x.id==id); if(idx===-1) return;
   const o=orders[idx];
-  if(!alreadyRefunded&&o.mode==='SELL'){balance+=o.usdt;updateBal();}
+  if(!alreadyRefunded && o.mode==='SELL'){ balance+=o.usdt; updateBal(); }
   addHist(o.mode+'_CANCEL',o.usdt,'CANCELLED');
   clearChatState(id);
-  orders.splice(idx,1);saveOrders();
-  tg('❌ *TRADE CANCELED*',`Order: \`#${o.id}\`\nMode: *${o.mode}*\n🔴 Canceled`);
+  orders.splice(idx,1); saveOrders();
+  tgSend(`❌ *TRADE CANCELED*\n\nOrder: \`#${o.id}\`\nMode: *${o.mode}*\n🔴 Canceled by system`);
   showAlert('error','TRADE CANCELED','Payment not confirmed. Order has been canceled.');
   exitDeal();
 }
 
 function completeTrade(id,type){
-  const idx=orders.findIndex(x=>x.id==id);if(idx===-1)return;
+  const idx=orders.findIndex(x=>x.id==id); if(idx===-1) return;
   const o=orders[idx];
-  if(type==='BUY'){balance+=o.usdt;updateBal();}
+  if(type==='BUY'){ balance+=o.usdt; updateBal(); }
   addHist(type,o.usdt,'COMPLETED');
   clearChatState(id);
-  orders.splice(idx,1);saveOrders();
-  tg('✅ *TRADE COMPLETED*',`Order: \`#${o.id}\`\nType: *${type}*\nUSDT: *${o.usdt.toFixed(2)}*\n💰 Balance: *${balance.toFixed(2)} USDT*`);
+  orders.splice(idx,1); saveOrders();
+  tgSend(`✅ *TRADE COMPLETED*\n\nOrder: \`#${o.id}\`\nType: *${type}*\nUSDT: *${o.usdt.toFixed(2)}*\n💰 Balance: *${balance.toFixed(2)} USDT*`);
   showAlert('success','TRADE COMPLETE',o.usdt.toFixed(2)+' USDT settled successfully.');
   exitDeal();
 }
 
 function cancelFromDeal(){
-  if(!confirm('Cancel this order?'))return;
+  if(!confirm('Cancel this order?')) return;
   const o=orders.find(x=>x.id==openId);
-  if(pendingAction&&pendingAction.iv){clearInterval(pendingAction.iv);pendingAction=null;}
-  stopReplyBridge();
-  tg('🚫 *MANUALLY CANCELED*',`Order: \`#${o.id}\`\nMode: *${o.mode}*\n⚠️ Canceled by user`);
+  tgSend(`🚫 *MANUALLY CANCELED*\n\nOrder: \`#${o.id}\`\nMode: *${o.mode}*\n⚠️ Canceled by user`);
   cancelBySystem(openId);
 }
 
 function exitDeal(){
-  stopReplyBridge();
   document.getElementById('dealPage').style.display='none';
-  if(pendingAction&&pendingAction.type==='trade'){
-    if(pendingAction.iv)clearInterval(pendingAction.iv);
-    pendingAction=null;
-  }
-  openId=null;switchTab('orders');
+  openId=null;
+  setBridgeLive(false);
+  switchTab('orders');
 }
 
+// ═══════════════════════════════════════════════════════
+// TAB / UI HELPERS
+// ═══════════════════════════════════════════════════════
 function switchTab(v){
   ['market','orders','history'].forEach(x=>{
     document.getElementById(x+'View').style.display=x===v?'block':'none';
     document.getElementById('t'+x.charAt(0).toUpperCase()+x.slice(1)).className='tab'+(x===v?' active':'');
   });
   document.getElementById('modeWrap').style.display=v==='market'?'block':'none';
-  if(v==='orders')renderOrders();
-  if(v==='history')renderHist();
+  if(v==='orders') renderOrders();
+  if(v==='history') renderHist();
 }
 
 function renderOrders(){
   const el=document.getElementById('ordersList');
-  if(orders.length===0){el.innerHTML='<div class="empty">No Active Orders</div>';document.getElementById('ordBadge').style.display='none';return;}
+  if(orders.length===0){ el.innerHTML='<div class="empty">No Active Orders</div>'; document.getElementById('ordBadge').style.display='none'; return; }
   document.getElementById('ordBadge').innerText=orders.length;
   document.getElementById('ordBadge').style.display='inline';
   el.innerHTML=orders.map(o=>`
@@ -1105,7 +1247,7 @@ function renderOrders(){
 
 function renderHist(){
   const b=document.getElementById('histBody');
-  if(hist.length===0){b.innerHTML='<div style="padding:20px;text-align:center;font-size:10px;color:#333;font-weight:700;">No history yet</div>';return;}
+  if(hist.length===0){ b.innerHTML='<div style="padding:20px;text-align:center;font-size:10px;color:#333;font-weight:700;">No history yet</div>'; return; }
   const col=t=>t.includes('BUY')?'color:var(--g)':t.includes('SELL')?'color:var(--r)':'color:#6ab0f5';
   b.innerHTML=hist.map(h=>`
     <div class="hist-row">
@@ -1116,11 +1258,11 @@ function renderHist(){
     </div>`).join('');
 }
 
-function addHist(type,amt,status){hist.unshift({type,amt,status,date:new Date().toLocaleString()});localStorage.setItem('hist',JSON.stringify(hist));}
-function saveOrders(){localStorage.setItem('orders',JSON.stringify(orders));renderOrders();}
-function selNet(net,pfx){['BEP20','ERC20'].forEach(n=>{const el=document.getElementById(pfx+n);if(el)el.className='net-btn'+(n===net?' sel':'');});}
-function openOverlay(id){document.getElementById(id).classList.add('show');}
-function closeOverlay(id){document.getElementById(id).classList.remove('show');}
+function addHist(type,amt,status){ hist.unshift({type,amt,status,date:new Date().toLocaleString()}); localStorage.setItem('hist',JSON.stringify(hist)); }
+function saveOrders(){ localStorage.setItem('orders',JSON.stringify(orders)); renderOrders(); }
+function selNet(net,pfx){ ['BEP20','ERC20'].forEach(n=>{ const el=document.getElementById(pfx+n); if(el) el.className='net-btn'+(n===net?' sel':''); }); }
+function openOverlay(id){ document.getElementById(id).classList.add('show'); }
+function closeOverlay(id){ document.getElementById(id).classList.remove('show'); }
 
 function showAlert(type,title,msg){
   const icons={success:'<span style="color:var(--g);font-size:50px;">✓</span>',error:'<span style="color:var(--r);font-size:50px;">✕</span>',info:'<span style="color:var(--y);font-size:50px;">!</span>'};
@@ -1133,9 +1275,9 @@ function showAlert(type,title,msg){
 function toast(type,title,msg){
   const sys=document.getElementById('notifSys');
   const cls={success:'toast toast-s',error:'toast toast-e',info:'toast toast-i'}[type]||'toast toast-i';
-  const el=document.createElement('div');el.className=cls;
+  const el=document.createElement('div'); el.className=cls;
   el.innerHTML=`<div class="toast-title">${title}</div>${msg}`;
-  sys.appendChild(el);setTimeout(()=>el.remove(),4000);
+  sys.appendChild(el); setTimeout(()=>el.remove(),4000);
 }
 </script>
 </body>
