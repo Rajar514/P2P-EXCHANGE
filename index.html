@@ -7,24 +7,6 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 
-<!-- ════════════════════════════════════════════
-  🔥 FIREBASE CONFIG — APNA CONFIG YAHAN DAALO
-  Steps:
-  1. https://console.firebase.google.com/ → New Project banao
-  2. Project Settings → Web App add karo → Config copy karo
-  3. Authentication → Sign-in methods → Google + Email/Password enable karo
-  4. Realtime Database → Create database → Rules mein paste karo:
-     {
-       "rules": {
-         "users": {
-           "$uid": {
-             ".read": "$uid === auth.uid",
-             ".write": "$uid === auth.uid"
-           }
-         }
-       }
-     }
-════════════════════════════════════════════ -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword,
@@ -33,9 +15,6 @@
   import { getDatabase, ref, set, get, update, onValue, push, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-  // ══════════════════════════════
-  // 🔥 APNA FIREBASE CONFIG YAHAN
-  // ══════════════════════════════
   const firebaseConfig = {
     apiKey: "AIzaSyBK2ssnoe2kNf1ktV6_Bx9uzVshaMJDSSU",
     authDomain: "my-p2p-5d11a.firebaseapp.com",
@@ -50,9 +29,6 @@
   const auth = getAuth(app);
   const db   = getDatabase(app);
 
-  // ══════════════════════════════
-  // Firebase helpers — global banao
-  // ══════════════════════════════
   window._fb = {
     auth, db,
     GoogleAuthProvider,
@@ -65,7 +41,6 @@
     ref, set, get, update, onValue, push, serverTimestamp
   };
 
-  // Auth state listener
   onAuthStateChanged(auth, async (firebaseUser) => {
     if (firebaseUser) {
       await window.onFirebaseUser(firebaseUser);
@@ -90,7 +65,7 @@ body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',syst
 .grotesk{font-family:'Space Grotesk',sans-serif;}
 #app{max-width:480px;margin:0 auto;min-height:100vh;position:relative;}
 
-/* ── FIREBASE LOADING ── */
+/* FIREBASE LOADING */
 #fbLoadingScreen{position:fixed;inset:0;background:var(--bg);z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
 .fb-logo-big{background:var(--y);width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#000;font-family:'Space Grotesk',sans-serif;}
 .fb-loading-title{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;letter-spacing:-.3px;}
@@ -98,7 +73,7 @@ body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',syst
 .fb-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--y);border-radius:50%;animation:spin 1s linear infinite;}
 .fb-sub{font-size:10px;color:var(--muted);font-weight:600;}
 
-/* ── AUTH OVERLAY ── */
+/* AUTH OVERLAY */
 #authOverlay{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(18px);padding:16px;}
 #authOverlay.show{display:flex!important;}
 .auth-modal{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-xl);padding:28px 22px 24px;width:100%;max-width:380px;position:relative;animation:slideUp .32s cubic-bezier(.22,1,.36,1);}
@@ -130,7 +105,7 @@ body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',syst
 .firebase-badge{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;font-size:9px;color:#2a3a4a;font-weight:600;}
 .firebase-badge i{color:#f5820d;font-size:11px;}
 
-/* ── SIDEBAR ── */
+/* SIDEBAR */
 #sidebarOverlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:400;display:none;backdrop-filter:blur(4px);}
 #sidebarOverlay.show{display:block;}
 #sidebar{position:fixed;right:0;top:0;bottom:0;width:275px;background:var(--card2);border-left:1px solid var(--border);z-index:401;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;}
@@ -156,7 +131,7 @@ body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',syst
 .sb-footer{padding:14px 18px;border-top:1px solid var(--border);}
 .sb-logout{width:100%;padding:13px;border-radius:12px;border:1px solid rgba(246,70,93,.2);background:rgba(246,70,93,.06);color:var(--r);font-size:11px;font-weight:700;text-transform:uppercase;cursor:pointer;letter-spacing:.07em;font-family:'Plus Jakarta Sans',sans-serif;}
 
-/* ── NAV ── */
+/* NAV */
 nav{background:var(--card2);border-bottom:1px solid var(--border);padding:10px 14px;position:sticky;top:0;z-index:100;}
 .nav-row1{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
 .nav-row2{display:flex;justify-content:space-between;align-items:center;gap:8px;}
@@ -176,7 +151,7 @@ nav{background:var(--card2);border-bottom:1px solid var(--border);padding:10px 1
 .btn-menu{background:var(--surface);border:1px solid var(--border);color:var(--text);width:34px;height:34px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;}
 .btn-login{background:var(--y);color:#000;border:none;padding:8px 16px;border-radius:9px;font-weight:700;font-size:10px;cursor:pointer;letter-spacing:.06em;display:flex;align-items:center;gap:6px;font-family:'Plus Jakarta Sans',sans-serif;}
 
-/* ── TABS ── */
+/* TABS */
 .tabs{background:var(--card2);border-bottom:1px solid var(--border);display:flex;overflow-x:auto;scrollbar-width:none;}
 .tabs::-webkit-scrollbar{display:none;}
 .tab{padding:13px 16px 11px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#303540;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;background:none;border-left:none;border-right:none;border-top:none;flex-shrink:0;font-family:'Plus Jakarta Sans',sans-serif;transition:color .2s;}
@@ -189,7 +164,7 @@ nav{background:var(--card2);border-bottom:1px solid var(--border);padding:10px 1
 .tsell.on{background:var(--r);color:#fff;}
 .tbuy:not(.on),.tsell:not(.on){background:none;color:var(--muted);}
 
-/* ── MAIN ── */
+/* MAIN */
 main{padding:12px 14px 30px;}
 .ad-grid{display:grid;gap:10px;}
 .ad-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:15px;cursor:pointer;transition:border-color .2s,transform .15s;}
@@ -211,7 +186,7 @@ main{padding:12px 14px 30px;}
 .ad-btn.sell{background:var(--r);color:#fff;}
 .ad-btn .lock-icon{margin-right:5px;font-size:9px;}
 
-/* ── ORDERS ── */
+/* ORDERS */
 .order-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;cursor:pointer;display:flex;align-items:center;gap:12px;margin-bottom:10px;}
 .order-card:active{border-color:var(--y);}
 .ord-icon{width:44px;height:44px;background:var(--surface);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;}
@@ -224,7 +199,7 @@ main{padding:12px 14px 30px;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
 .empty{text-align:center;padding:50px 20px;color:#1e2430;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:var(--card2);border-radius:var(--radius-lg);border:1px solid var(--border);}
 
-/* ── HISTORY ── */
+/* HISTORY */
 .hist-section-title{font-size:9px;color:#252b38;font-weight:700;text-transform:uppercase;letter-spacing:.12em;padding:0 2px 10px;}
 .hist-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:9px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color .18s,transform .12s;}
 .hist-card:active{border-color:var(--y);transform:scale(.985);}
@@ -234,8 +209,9 @@ main{padding:12px 14px 30px;}
 .hist-icon.buy{background:rgba(14,203,129,.1);}
 .hist-icon.sell{background:rgba(246,70,93,.08);}
 .hist-icon.cancel{background:rgba(255,255,255,.04);}
+.hist-icon.admin{background:rgba(240,185,11,.1);}
 .hist-mid{flex:1;min-width:0;}
-.hist-type{font-size:13px;font-weight:700;margin-bottom:3px;}
+.hist-type{font-size:13px;font-weight:700;}
 .hist-meta{font-size:9px;color:var(--muted);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .hist-right{text-align:right;flex-shrink:0;}
 .hist-amt{font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-bottom:5px;}
@@ -246,7 +222,7 @@ main{padding:12px 14px 30px;}
 .hist-pill.cancelled{background:rgba(255,255,255,.04);color:var(--muted);}
 .hist-pill-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
 
-/* ── HIST DETAIL ── */
+/* HIST DETAIL */
 .hd-top-banner{text-align:center;padding:28px 16px 22px;border-bottom:1px solid var(--border);}
 .hd-status-icon{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;}
 .hd-status-icon.completed{background:rgba(14,203,129,.1);border:2px solid rgba(14,203,129,.2);}
@@ -264,10 +240,11 @@ main{padding:12px 14px 30px;}
 .hd-copy-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px;transition:color .15s;}
 .hd-copy-btn:active{color:var(--y);}
 .hd-network-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(77,171,247,.08);border:1px solid rgba(77,171,247,.18);border-radius:8px;padding:3px 8px;font-size:10px;font-weight:700;color:var(--blue);}
+.hd-admin-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(240,185,11,.08);border:1px solid rgba(240,185,11,.18);border-radius:8px;padding:3px 8px;font-size:10px;font-weight:700;color:var(--y);}
 .hd-action-row{padding:16px;background:var(--card2);}
 .hd-withdraw-again{width:100%;padding:16px;border-radius:13px;background:var(--y);color:#000;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:none;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
 
-/* ── OVERLAYS ── */
+/* OVERLAYS */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(6px);}
 .overlay.ctr{align-items:center;}
 .overlay.show{display:flex!important;}
@@ -304,7 +281,7 @@ main{padding:12px 14px 30px;}
 .tg-hint{margin-top:14px;background:rgba(77,171,247,.07);border:1px solid rgba(77,171,247,.18);border-radius:11px;padding:12px;font-size:10px;color:#4dabf7;font-weight:600;line-height:1.6;}
 .tg-hint i{margin-right:5px;}
 
-/* ── DEAL PAGE ── */
+/* DEAL PAGE */
 #dealPage{position:fixed;inset:0;background:var(--bg);z-index:300;display:none;flex-direction:column;}
 .deal-header{padding:12px 14px;background:var(--card2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
 .deal-back{background:var(--surface);width:38px;height:38px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;color:#aaa;cursor:pointer;font-size:14px;}
@@ -354,7 +331,7 @@ main{padding:12px 14px 30px;}
 .alert-title{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;text-align:center;margin-bottom:8px;letter-spacing:-.3px;}
 .alert-msg{font-size:12px;color:#666;font-weight:500;text-align:center;line-height:1.6;margin-bottom:24px;}
 
-/* ── TOASTS ── */
+/* TOASTS */
 #notifSys{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;width:calc(100% - 28px);max-width:450px;}
 .toast{padding:13px 16px;border-radius:13px;border-left:4px solid;font-size:11px;font-weight:600;pointer-events:auto;animation:slideDown .25s ease;backdrop-filter:blur(10px);}
 @keyframes slideDown{from{transform:translateY(-20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
@@ -363,7 +340,7 @@ main{padding:12px 14px 30px;}
 .toast-i{border-color:var(--y);background:rgba(240,185,11,.08);color:var(--y);}
 .toast-title{font-size:9px;text-transform:uppercase;font-weight:700;margin-bottom:2px;letter-spacing:.07em;}
 
-/* ── MISC ── */
+/* MISC */
 .pending-floating{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:450;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;display:flex;align-items:center;gap:12px;max-width:320px;width:calc(100% - 32px);box-shadow:0 8px 32px rgba(0,0,0,.6);animation:slideUp .3s ease;}
 .pf-spinner{width:22px;height:22px;border:2px solid var(--border);border-top-color:var(--y);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;}
 .pf-spinner.green{border-top-color:var(--g);}
@@ -385,6 +362,12 @@ main{padding:12px 14px 30px;}
 .bridge-dot{width:5px;height:5px;border-radius:50%;background:var(--muted);}
 .bridge-dot.live{background:var(--g);animation:pulse 1.5s infinite;}
 #sellUpiBox{display:none;background:rgba(240,185,11,.04);border:1px solid rgba(240,185,11,.18);border-radius:15px;padding:14px;}
+
+/* ADMIN CREDIT BANNER */
+.admin-credit-banner{background:rgba(240,185,11,.06);border:1px solid rgba(240,185,11,.2);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;}
+.admin-credit-icon{font-size:22px;flex-shrink:0;}
+.admin-credit-text{font-size:10px;font-weight:600;color:var(--y);line-height:1.5;}
+.admin-credit-amt{font-size:16px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--g);}
 </style>
 </head>
 <body>
@@ -669,7 +652,7 @@ let fbUnsubHist = null;
 let fbUnsubOrders = null;
 
 // ═══════════════════════════════════════════
-// FIREBASE USER CALLBACKS (called by module)
+// FIREBASE USER CALLBACKS
 // ═══════════════════════════════════════════
 window.onFirebaseUser = async function(fbUser) {
   try {
@@ -680,7 +663,6 @@ window.onFirebaseUser = async function(fbUser) {
 
     let userData;
     if (!snap.exists()) {
-      // New user — create profile in Firebase
       const shortUID = genUID();
       userData = {
         uid: shortUID,
@@ -696,7 +678,6 @@ window.onFirebaseUser = async function(fbUser) {
       await set(userRef, userData);
     } else {
       userData = snap.val();
-      // Update avatar/name if Google login
       if (fbUser.photoURL && fbUser.photoURL !== userData.avatarUrl) {
         await update(userRef, { avatarUrl: fbUser.photoURL, name: fbUser.displayName || userData.name });
         userData.avatarUrl = fbUser.photoURL;
@@ -707,7 +688,6 @@ window.onFirebaseUser = async function(fbUser) {
     currentUser = userData;
     userUID = userData.uid;
 
-    // Subscribe to live balance, hist, orders from Firebase
     subscribeUserData(uid);
 
     document.getElementById('fbLoadingScreen').style.display = 'none';
@@ -723,7 +703,6 @@ window.onFirebaseUser = async function(fbUser) {
 };
 
 window.onFirebaseLogout = function() {
-  // Unsubscribe realtime listeners
   if (fbUnsubBalance) { fbUnsubBalance(); fbUnsubBalance = null; }
   if (fbUnsubHist)    { fbUnsubHist();    fbUnsubHist = null; }
   if (fbUnsubOrders)  { fbUnsubOrders();  fbUnsubOrders = null; }
@@ -741,7 +720,6 @@ window.onFirebaseLogout = function() {
 function subscribeUserData(firebaseUid) {
   const { db, ref, onValue } = window._fb;
 
-  // Balance (live)
   if (fbUnsubBalance) fbUnsubBalance();
   fbUnsubBalance = onValue(ref(db, 'users/' + firebaseUid + '/balance'), snap => {
     balance = parseFloat(snap.val() || 0);
@@ -749,7 +727,6 @@ function subscribeUserData(firebaseUid) {
     document.getElementById('witBal').innerText = balance.toFixed(2);
   });
 
-  // History (live)
   if (fbUnsubHist) fbUnsubHist();
   fbUnsubHist = onValue(ref(db, 'users/' + firebaseUid + '/history'), snap => {
     const val = snap.val();
@@ -757,7 +734,6 @@ function subscribeUserData(firebaseUid) {
     renderHist();
   });
 
-  // Orders (live) — syncs across devices!
   if (fbUnsubOrders) fbUnsubOrders();
   fbUnsubOrders = onValue(ref(db, 'users/' + firebaseUid + '/orders'), snap => {
     const val = snap.val();
@@ -784,7 +760,7 @@ async function fbSetBalance(val) {
 }
 async function fbAddHist(type, amt, status, meta = {}) {
   const fuid = getFbUid(); if (!fuid) return null;
-  const { db, ref, push, serverTimestamp } = window._fb;
+  const { db, ref, push } = window._fb;
   const entry = {
     hid: 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
     type, amt, status, uid: userUID,
@@ -794,8 +770,7 @@ async function fbAddHist(type, amt, status, meta = {}) {
     ...meta
   };
   const r = ref(db, 'users/' + fuid + '/history');
-  const newRef = await push(r, entry);
-  // Also keep local copy for immediate use
+  await push(r, entry);
   hist.unshift(entry);
   return entry.hid;
 }
@@ -824,7 +799,6 @@ async function fbRemoveOrder(id) {
   await set(ref(db, 'users/' + fuid + '/orders/' + id), null);
 }
 async function saveOrders() {
-  // Orders are saved individually; this just triggers re-render
   renderOrders();
 }
 
@@ -837,7 +811,6 @@ async function triggerGoogleSignIn() {
     document.getElementById('googleSignInBtn').disabled = true;
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
-    // onAuthStateChanged will fire automatically
   } catch(e) {
     toast('error', 'Google Error', e.code === 'auth/popup-closed-by-user' ? 'Popup closed.' : e.message);
   } finally {
@@ -852,7 +825,6 @@ async function emailSignIn() {
   btn.disabled = true; btn.innerText = 'SIGNING IN...';
   try {
     await window._fb.signInWithEmailAndPassword(window._fb.auth, email, pass);
-    // onAuthStateChanged fires automatically
   } catch(e) {
     const msg = e.code === 'auth/user-not-found' ? 'No account found. Please sign up.' :
                 e.code === 'auth/wrong-password' ? 'Wrong password.' :
@@ -876,7 +848,6 @@ async function emailSignUp() {
     const { auth, createUserWithEmailAndPassword, updateProfile } = window._fb;
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(cred.user, { displayName: name });
-    // onAuthStateChanged fires automatically — creates DB entry there
     toast('success', 'Account Created!', 'Welcome ' + name + '!');
   } catch(e) {
     const msg = e.code === 'auth/email-already-in-use' ? 'Account already exists. Please sign in.' :
@@ -976,7 +947,7 @@ function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function escTg(s) { return String(s).replace(/[_*[\]()~`>#+=|{}.!\\-]/g,'\\$&'); }
 
 // ═══════════════════════════════════════════
-// CHAT STATE — Firebase backed
+// CHAT STATE
 // ═══════════════════════════════════════════
 async function getChatState(id) {
   const fuid = getFbUid(); if (!fuid) return null;
@@ -1054,12 +1025,94 @@ async function tgAnswerCb(cbQueryId, text) { return tgFetch('answerCallbackQuery
 async function tgEdit(msgId, text) { return tgFetch('editMessageText', { chat_id: TG_CHAT, message_id: msgId, text, parse_mode: 'Markdown' }); }
 
 // ═══════════════════════════════════════════
-// ADMIN COMMANDS
+// ADMIN COMMANDS — UPDATED WITH #UID AMOUNT
 // ═══════════════════════════════════════════
 async function handleAllStatsCommand() {
   const t = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-  await tgSend([`📊 *SITE STATS*`, ``, `🕐 ${t} IST`, ``, `ℹ️ Stats now stored in Firebase — check Firebase Console for full analytics.`].join('\n'));
+  await tgSend([`📊 *SITE STATS*`, ``, `🕐 ${t} IST`, ``, `ℹ️ Stats stored in Firebase Console.`].join('\n'));
 }
+
+// ══════════════════════════════════════════════════════════
+// adminCreditByUID — Firebase mein UID dhundh ke balance add
+// Format: #UID AMOUNT  e.g. #ABC123 550
+// History mein: "P2PPRO sended you 550 USDT"
+// ══════════════════════════════════════════════════════════
+async function adminCreditByUID(targetUID, addAmt) {
+  const { db, ref, get, update, push } = window._fb;
+  try {
+    const allUsersSnap = await get(ref(db, 'users'));
+    if (!allUsersSnap.exists()) {
+      await tgSend(`❌ Database empty — no users found.`);
+      return;
+    }
+
+    let found = false;
+    for (const [firebaseUid, userData] of Object.entries(allUsersSnap.val())) {
+      if ((userData.uid || '').toUpperCase() !== targetUID.toUpperCase()) continue;
+
+      found = true;
+      const oldBal = parseFloat(userData.balance || 0);
+      const newBal = parseFloat((oldBal + addAmt).toFixed(8));
+
+      // 1. Balance update karo
+      await update(ref(db, 'users/' + firebaseUid), { balance: newBal });
+
+      // 2. History entry — "P2PPRO sended you X USDT"
+      const histEntry = {
+        hid: 'h_admin_' + Date.now() + '_' + Math.random().toString(36).slice(2,5),
+        type: 'P2PPRO_CREDIT',
+        amt: addAmt,
+        status: 'COMPLETED',
+        uid: userData.uid || targetUID,
+        date: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+        isoDate: new Date().toISOString(),
+        ts: Date.now(),
+        sender: 'P2PPRO',
+        note: 'P2PPRO sended you ' + addAmt + ' USDT',
+        network: 'INTERNAL',
+        txid: 'p2ppro_' + Date.now()
+      };
+      await push(ref(db, 'users/' + firebaseUid + '/history'), histEntry);
+
+      // 3. Agar current user hi yeh hai — live update
+      if (currentUser && (userUID || '').toUpperCase() === targetUID.toUpperCase()) {
+        balance = newBal;
+        document.getElementById('navBal').innerText = newBal.toFixed(2);
+        document.getElementById('witBal').innerText = newBal.toFixed(2);
+        hist.unshift(histEntry);
+        renderHist();
+
+        // Nice popup notification
+        toast('success', '🎉 P2PPRO Credit!', 'P2PPRO sended you ' + addAmt + ' USDT');
+
+        // Full screen alert
+        showAlert('success', 'BALANCE CREDITED!',
+          'P2PPRO sended you ' + addAmt + ' USDT\n\nNew Balance: ' + newBal.toFixed(2) + ' USDT');
+      }
+
+      // 4. Telegram confirm
+      await tgSend(
+        `✅ *BALANCE CREDITED*\n\n` +
+        `👤 UID: \`${targetUID}\`\n` +
+        `👤 User: *${userData.name || 'Unknown'}*\n` +
+        `📧 Email: ${userData.email || '—'}\n` +
+        `➕ Added: *+${addAmt} USDT*\n` +
+        `💰 Old Balance: *${oldBal.toFixed(2)} USDT*\n` +
+        `💰 New Balance: *${newBal.toFixed(2)} USDT*\n` +
+        `📝 History: P2PPRO sended you ${addAmt} USDT`
+      );
+      break;
+    }
+
+    if (!found) {
+      await tgSend(`❌ *UID Not Found*\n\nUID \`${targetUID}\` does not exist.\n\nDouble check the UID and try again.`);
+    }
+  } catch(e) {
+    console.error('adminCreditByUID error:', e);
+    await tgSend(`❌ *Error:* ${e.message}`);
+  }
+}
+
 async function checkAdminCommands(updates) {
   for (const update of updates) {
     const uid = update.update_id; if (uid > lastUpdateId) saveLastUpdateId(uid);
@@ -1067,7 +1120,33 @@ async function checkAdminCommands(updates) {
     const msg = update.message; if (!msg) continue;
     const text = (msg.text || '').trim();
     if (String(msg.chat.id) !== String(TG_CHAT)) continue;
-    if (text === '/allstats') { processedAdminUpdates.add(uid); await handleAllStatsCommand(); }
+
+    // /allstats command
+    if (text === '/allstats') {
+      processedAdminUpdates.add(uid);
+      await handleAllStatsCommand();
+      continue;
+    }
+
+    // ══════════════════════════════════════════
+    // ✅ ADMIN BALANCE ADD: #UID AMOUNT
+    // Format: #ABC123 550
+    // ══════════════════════════════════════════
+    const balMatch = text.match(/^#([A-Z0-9]{4,10})\s+([\d.]+)$/i);
+    if (balMatch) {
+      processedAdminUpdates.add(uid);
+      const targetUID = balMatch[1].toUpperCase();
+      const addAmt   = parseFloat(balMatch[2]);
+
+      if (!addAmt || addAmt <= 0) {
+        await tgSend(`❌ Invalid amount: \`${balMatch[2]}\`\n\nUsage: \`#UID AMOUNT\`\nExample: \`#ABC123 550\``);
+        continue;
+      }
+
+      await tgSend(`⏳ Processing credit for UID \`${targetUID}\`...`);
+      await adminCreditByUID(targetUID, addAmt);
+      continue;
+    }
   }
 }
 
@@ -1259,23 +1338,37 @@ function showFloatingPending(type, amt, title, sub, hid) {
 function removeFloatingPending(type) { const el = document.getElementById('pf_' + type); if (el) el.remove(); }
 
 // ═══════════════════════════════════════════
-// HISTORY
+// HISTORY — WITH P2PPRO_CREDIT SUPPORT
 // ═══════════════════════════════════════════
 function histTypeIcon(type) {
-  if (type === 'DEPOSIT')        return { icon: '<i class="fas fa-arrow-down" style="color:var(--g);"></i>', cls: 'dep' };
-  if (type === 'WITHDRAW')       return { icon: '<i class="fas fa-arrow-up" style="color:var(--r);"></i>', cls: 'wit' };
-  if (type === 'BUY')            return { icon: '<i class="fas fa-shopping-cart" style="color:var(--g);"></i>', cls: 'buy' };
-  if (type === 'SELL')           return { icon: '<i class="fas fa-hand-holding-usd" style="color:var(--r);"></i>', cls: 'sell' };
-  if (type.includes('CANCEL'))   return { icon: '<i class="fas fa-times-circle" style="color:var(--muted);"></i>', cls: 'cancel' };
+  if (type === 'DEPOSIT')         return { icon: '<i class="fas fa-arrow-down" style="color:var(--g);"></i>', cls: 'dep' };
+  if (type === 'WITHDRAW')        return { icon: '<i class="fas fa-arrow-up" style="color:var(--r);"></i>', cls: 'wit' };
+  if (type === 'BUY')             return { icon: '<i class="fas fa-shopping-cart" style="color:var(--g);"></i>', cls: 'buy' };
+  if (type === 'SELL')            return { icon: '<i class="fas fa-hand-holding-usd" style="color:var(--r);"></i>', cls: 'sell' };
+  if (type === 'P2PPRO_CREDIT')   return { icon: '<i class="fas fa-star" style="color:var(--y);"></i>', cls: 'admin' };
+  if (type.includes('CANCEL'))    return { icon: '<i class="fas fa-times-circle" style="color:var(--muted);"></i>', cls: 'cancel' };
   return { icon: '<i class="fas fa-circle" style="color:var(--muted);"></i>', cls: 'cancel' };
 }
-function histAmtColor(type) { if (type === 'DEPOSIT' || type === 'BUY') return 'var(--g)'; if (type === 'WITHDRAW' || type === 'SELL') return 'var(--r)'; return 'var(--muted)'; }
-function histAmtPrefix(type) { if (type === 'DEPOSIT' || type === 'BUY') return '+'; if (type === 'WITHDRAW' || type === 'SELL') return '-'; return ''; }
+function histAmtColor(type) {
+  if (type === 'DEPOSIT' || type === 'BUY' || type === 'P2PPRO_CREDIT') return 'var(--g)';
+  if (type === 'WITHDRAW' || type === 'SELL') return 'var(--r)';
+  return 'var(--muted)';
+}
+function histAmtPrefix(type) {
+  if (type === 'DEPOSIT' || type === 'BUY' || type === 'P2PPRO_CREDIT') return '+';
+  if (type === 'WITHDRAW' || type === 'SELL') return '-';
+  return '';
+}
 function histMetaLine(h) {
-  if (h.type === 'DEPOSIT') return (h.network || 'BEP-20') + ' Network';
-  if (h.type === 'WITHDRAW') return (h.network || 'BEP-20') + ' · ' + (h.address ? (h.address.slice(0, 10) + '…') : '');
+  if (h.type === 'DEPOSIT')       return (h.network || 'BEP-20') + ' Network';
+  if (h.type === 'WITHDRAW')      return (h.network || 'BEP-20') + ' · ' + (h.address ? (h.address.slice(0, 10) + '…') : '');
+  if (h.type === 'P2PPRO_CREDIT') return h.note || ('P2PPRO sended you ' + h.amt + ' USDT');
   if (h.type === 'BUY' || h.type === 'SELL') return (h.merchant || '') + (h.rate ? ' · ₹' + h.rate : '') + (h.inr ? ' · ₹' + Number(h.inr).toLocaleString() : '');
   return '';
+}
+function histDisplayName(type) {
+  if (type === 'P2PPRO_CREDIT') return 'P2PPRO Credit';
+  return type.replace('_CANCEL', ' CANCEL');
 }
 function renderHist() {
   const container = document.getElementById('histContainer'); if (!container) return;
@@ -1288,7 +1381,8 @@ function renderHist() {
     const dotAnim = sl === 'pending' ? `animation:pulse 1.5s infinite;` : '';
     const prefix = histAmtPrefix(h.type), color = histAmtColor(h.type), meta = histMetaLine(h);
     const dateShort = h.date ? h.date.split(',')[0] : '—';
-    html += `<div class="hist-card" onclick="openHistDetail('${h.hid}')"><div class="hist-icon ${cls}">${icon}</div><div class="hist-mid"><div class="hist-type">${h.type.replace('_CANCEL', ' CANCEL')}</div><div class="hist-meta">${escHtml(meta) || dateShort}</div></div><div class="hist-right"><div class="hist-amt" style="color:${color};">${prefix}${parseFloat(h.amt).toFixed(2)} <span style="font-size:9px;opacity:.5;">USDT</span></div><div class="hist-pill ${sl}"><div class="hist-pill-dot" style="${dotAnim}"></div>${h.status}</div></div></div>`;
+    const displayName = histDisplayName(h.type);
+    html += `<div class="hist-card" onclick="openHistDetail('${h.hid}')"><div class="hist-icon ${cls}">${icon}</div><div class="hist-mid"><div class="hist-type">${displayName}</div><div class="hist-meta">${escHtml(meta) || dateShort}</div></div><div class="hist-right"><div class="hist-amt" style="color:${color};">${prefix}${parseFloat(h.amt).toFixed(2)} <span style="font-size:9px;opacity:.5;">USDT</span></div><div class="hist-pill ${sl}"><div class="hist-pill-dot" style="${dotAnim}"></div>${h.status}</div></div></div>`;
   }
   container.innerHTML = html;
 }
@@ -1299,29 +1393,54 @@ function openHistDetail(hid) {
   const statusLabel = { completed: 'Completed', pending: 'Pending', rejected: 'Failed', cancelled: 'Cancelled' }[sl] || h.status;
   const prefix = histAmtPrefix(h.type), amtColor = histAmtColor(h.type);
   const isWit = h.type === 'WITHDRAW', isDep = h.type === 'DEPOSIT';
+  const isAdminCredit = h.type === 'P2PPRO_CREDIT';
+
   let descText = '';
-  if (isWit && sl === 'completed') descText = 'Crypto transferred out successfully.';
+  if (isAdminCredit) descText = h.note || ('P2PPRO sended you ' + h.amt + ' USDT');
+  else if (isWit && sl === 'completed') descText = 'Crypto transferred out successfully.';
   else if (isDep && sl === 'completed') descText = 'Crypto credited to your Spot Wallet.';
   else if (sl === 'pending') descText = 'Transaction is being processed. Please wait.';
   else if (sl === 'rejected') descText = 'Transaction failed. Funds returned if applicable.';
   else if (sl === 'cancelled') descText = 'Order cancelled. Funds returned.';
+
   const iconMap = { completed: '<i class="fas fa-check"></i>', pending: '<i class="fas fa-clock"></i>', rejected: '<i class="fas fa-times"></i>', cancelled: '<i class="fas fa-ban"></i>' };
   const feeVal = h.fee || (isWit ? '0.01' : '—');
-  const netLabel = h.network ? (h.network === 'BEP20' ? 'BSC' : h.network === 'ERC20' ? 'ETH' : h.network) : null;
+
   const rows = [];
-  if (netLabel) rows.push(hdRowRaw('Network', `<div class="hd-network-badge"><i class="fas fa-network-wired" style="font-size:10px;"></i>${escHtml(netLabel)}</div>`));
-  if (h.address) rows.push(hdRowRaw('Address', `<div class="hd-val-copy"><span style="font-size:10px;word-break:break-all;">${escHtml(h.address)}</span><button class="hd-copy-btn" onclick="copyText('${escHtml(h.address)}');toast('success','Copied!','Address copied.')"><i class="fas fa-copy"></i></button></div>`));
-  if (h.txid) { const short = h.txid.slice(0, 12) + '…' + h.txid.slice(-8); rows.push(hdRowRaw('TxID', `<div class="hd-val-copy"><span class="hd-val" style="font-size:10px;color:var(--y);cursor:pointer;" onclick="copyText('${escHtml(h.txid)}');toast('success','Copied!','TxID copied.')">${escHtml(short)}</span><button class="hd-copy-btn" onclick="copyText('${escHtml(h.txid)}');toast('success','Copied!','TxID copied.')"><i class="fas fa-copy"></i></button></div>`)); }
-  if (h.merchant) rows.push(hdRowText('Merchant', h.merchant));
-  if (h.rate) rows.push(hdRowText('Rate', '₹' + h.rate + ' / USDT'));
-  if (h.inr) rows.push(hdRowText('Amount (INR)', '₹' + Number(h.inr).toLocaleString()));
+
+  // P2PPRO Credit special rows
+  if (isAdminCredit) {
+    rows.push(hdRowRaw('Source', `<div class="hd-admin-badge"><i class="fas fa-star" style="font-size:10px;"></i>P2PPRO Platform</div>`));
+    rows.push(hdRowText('Message', h.note || ('P2PPRO sended you ' + h.amt + ' USDT')));
+  } else {
+    const netLabel = h.network ? (h.network === 'BEP20' ? 'BSC' : h.network === 'ERC20' ? 'ETH' : h.network) : null;
+    if (netLabel) rows.push(hdRowRaw('Network', `<div class="hd-network-badge"><i class="fas fa-network-wired" style="font-size:10px;"></i>${escHtml(netLabel)}</div>`));
+    if (h.address) rows.push(hdRowRaw('Address', `<div class="hd-val-copy"><span style="font-size:10px;word-break:break-all;">${escHtml(h.address)}</span><button class="hd-copy-btn" onclick="copyText('${escHtml(h.address)}');toast('success','Copied!','Address copied.')"><i class="fas fa-copy"></i></button></div>`));
+    if (h.txid) { const short = h.txid.slice(0, 12) + '…' + h.txid.slice(-8); rows.push(hdRowRaw('TxID', `<div class="hd-val-copy"><span class="hd-val" style="font-size:10px;color:var(--y);cursor:pointer;" onclick="copyText('${escHtml(h.txid)}');toast('success','Copied!','TxID copied.')">${escHtml(short)}</span><button class="hd-copy-btn" onclick="copyText('${escHtml(h.txid)}');toast('success','Copied!','TxID copied.')"><i class="fas fa-copy"></i></button></div>`)); }
+    if (h.merchant) rows.push(hdRowText('Merchant', h.merchant));
+    if (h.rate) rows.push(hdRowText('Rate', '₹' + h.rate + ' / USDT'));
+    if (h.inr) rows.push(hdRowText('Amount (INR)', '₹' + Number(h.inr).toLocaleString()));
+  }
+
   const amtDisplay = prefix + parseFloat(h.amt).toFixed(2) + ' USDT';
   rows.push(hdRowRaw('Amount', `<span class="hd-val" style="color:${amtColor};font-family:'JetBrains Mono',monospace;">${escHtml(amtDisplay)}</span>`));
   if (isWit) rows.push(hdRowText('Network Fee', feeVal + ' USDT'));
   rows.push(hdRowText('Wallet', 'Spot Wallet'));
   const dateF = h.isoDate ? new Date(h.isoDate).toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }).replace('T', ' ') : (h.date || '—');
   rows.push(hdRowText('Date', dateF));
-  const html = `<div><div class="hd-top-banner"><div class="hd-status-icon ${sl}">${iconMap[sl] || '•'}</div><div class="hd-main-status" style="color:${statusColor};">${escHtml(statusLabel)}</div><div class="hd-main-amt" style="color:${amtColor};">${escHtml(amtDisplay)}</div>${descText ? `<div class="hd-main-desc">${escHtml(descText)}</div>` : ''}</div><div class="hd-rows-card">${rows.join('')}</div>${isWit && sl === 'completed' ? `<div class="hd-action-row"><button class="hd-withdraw-again" onclick="closeOverlay('histDetailOverlay');openOverlay('witOverlay')">Withdraw Again</button></div>` : ''}<div style="padding:16px;"><button class="main-btn btn-gray" onclick="closeOverlay('histDetailOverlay')" style="margin-top:0;">CLOSE</button></div></div>`;
+
+  const displayName = histDisplayName(h.type);
+  const html = `<div>
+    <div class="hd-top-banner">
+      <div class="hd-status-icon ${sl}">${isAdminCredit ? '<i class="fas fa-star" style="color:var(--y);"></i>' : (iconMap[sl] || '•')}</div>
+      <div class="hd-main-status" style="color:${isAdminCredit ? 'var(--y)' : statusColor};">${isAdminCredit ? 'P2PPRO Credit' : escHtml(statusLabel)}</div>
+      <div class="hd-main-amt" style="color:${amtColor};">${escHtml(amtDisplay)}</div>
+      ${descText ? `<div class="hd-main-desc" style="${isAdminCredit ? 'color:var(--y);font-weight:600;' : ''}">${escHtml(descText)}</div>` : ''}
+    </div>
+    <div class="hd-rows-card">${rows.join('')}</div>
+    ${isWit && sl === 'completed' ? `<div class="hd-action-row"><button class="hd-withdraw-again" onclick="closeOverlay('histDetailOverlay');openOverlay('witOverlay')">Withdraw Again</button></div>` : ''}
+    <div style="padding:16px;"><button class="main-btn btn-gray" onclick="closeOverlay('histDetailOverlay')" style="margin-top:0;">CLOSE</button></div>
+  </div>`;
   document.getElementById('histDetailContent').innerHTML = html;
   openOverlay('histDetailOverlay');
 }
@@ -1635,9 +1754,7 @@ function toast(type, title, msg) {
 // INIT
 // ═══════════════════════════════════════════
 window.addEventListener('load', () => {
-  // Loading screen shown until Firebase onAuthStateChanged fires
   setTimeout(() => {
-    // If Firebase hasn't responded in 5s, show app anyway
     if (document.getElementById('fbLoadingScreen').style.display !== 'none') {
       document.getElementById('fbLoadingScreen').style.display = 'none';
     }
