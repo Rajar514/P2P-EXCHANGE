@@ -689,7 +689,232 @@ function hideResetPanel(){document.getElementById('resetPanel').style.display='n
 async function doPasswordReset(){const email=document.getElementById('resetEmail').value.trim();if(!email)return toast('error','Error','Enter your email.');const btn=document.getElementById('resetBtn');btn.disabled=true;btn.innerText='SENDING...';try{await window._fb.sendPasswordResetEmail(window._fb.auth,email);toast('success','Reset Link Sent!','Check your inbox.');btn.innerText='✅ EMAIL SENT';setTimeout(()=>{hideResetPanel();btn.disabled=false;btn.innerText='SEND RESET LINK';},3000);}catch(e){toast('error','Reset Failed',e.message);btn.disabled=false;btn.innerText='SEND RESET LINK';}}
 window.onFirebaseUser=async function(fbUser){try{const{db,ref,get,set,update}=window._fb;const uid=fbUser.uid;const userRef=ref(db,'users/'+uid);const snap=await get(userRef);let userData;if(!snap.exists()){const shortUID=genUID();userData={uid:shortUID,firebaseUid:uid,name:fbUser.displayName||fbUser.email.split('@')[0],email:fbUser.email,avatar:(fbUser.displayName||fbUser.email)[0].toUpperCase(),avatarUrl:fbUser.photoURL||null,provider:fbUser.providerData[0]?.providerId||'unknown',createdAt:Date.now(),balance:0};await set(userRef,userData);}else{userData=snap.val();if(fbUser.photoURL&&fbUser.photoURL!==userData.avatarUrl){await update(userRef,{avatarUrl:fbUser.photoURL,name:fbUser.displayName||userData.name});userData.avatarUrl=fbUser.photoURL;userData.name=fbUser.displayName||userData.name;}}currentUser=userData;userUID=userData.uid;subscribeUserData(uid);await restorePendingRequests(uid);document.getElementById('fbLoadingScreen').style.display='none';closeAuth();updateNavState();updateSidebarUser();toast('success','✅ Logged In','Welcome back, '+userData.name+'!');}catch(e){console.error(e);document.getElementById('fbLoadingScreen').style.display='none';toast('error','Firebase Error',e.message);}};
 window.onFirebaseLogout=function(){if(fbUnsubBalance){fbUnsubBalance();fbUnsubBalance=null;}if(fbUnsubHist){fbUnsubHist();fbUnsubHist=null;}if(fbUnsubOrders){fbUnsubOrders();fbUnsubOrders=null;}currentUser=null;userUID=null;balance=0;hist=[];orders=[];pendingDepReq=null;pendingWitReq=null;document.getElementById('fbLoadingScreen').style.display='none';updateNavState();renderOrders();renderHist();};
-function subscribeUserData(firebaseUid){const{db,ref,onValue}=window._fb;if(fbUnsubBalance)fbUnsubBalance();fbUnsubBalance=onValue(ref(db,'users/'+firebaseUid+'/balance'),snap=>{balance=parseFloat(snap.val()||0);document.getElementById('navBal').innerText=balance.toFixed(2);document.getElementById('witBal').innerText=balance.toFixed(2);});if(fbUnsubHist)fbUnsubHist();fbUnsubHist=onValue(ref(db,'users/'+firebaseUid+'/history'),snap=>{const val=snap.val();hist=val?Object.values(val).sort((a,b)=>b.ts-a.ts):[];renderHist();});if(fbUnsubOrders)fbUnsubOrders();fbUnsubOrders=onValue(ref(db,'users/'+firebaseUid+'/orders'),snap=>{const val=snap.val();orders=val?Object.values(val).sort((a,b)=>b.time-a.time):[];checkExpiredOrders();renderOrders();const badge=document.getElementById('ordBadge');if(orders.length>0){badge.innerText=orders.length;badge.style.display='inline';}else badge.style.display='none';});}
+// Track active admin-action listeners so we can unsub when done
+const activeActionListeners = {};
+
+function unsubActionListener(cbId){
+  if(activeActionListeners[cbId]){
+    activeActionListeners[cbId]();
+    delete activeActionListeners[cbId];
+  }
+}
+
+function subscribeUserData(firebaseUid){
+  const{db,ref,onValue}=window._fb;
+  if(fbUnsubBalance)fbUnsubBalance();
+  fbUnsubBalance=onValue(ref(db,'users/'+firebaseUid+'/balance'),snap=>{
+    balance=parseFloat(snap.val()||0);
+    document.getElementById('navBal').innerText=balance.toFixed(2);
+    document.getElementById('witBal').innerText=balance.toFixed(2);
+  });
+  if(fbUnsubHist)fbUnsubHist();
+  fbUnsubHist=onValue(ref(db,'users/'+firebaseUid+'/history'),snap=>{
+    const val=snap.val();
+    hist=val?Object.values(val).sort((a,b)=>b.ts-a.ts):[];
+    renderHist();
+  });
+  if(fbUnsubOrders)fbUnsubOrders();
+  fbUnsubOrders=onValue(ref(db,'users/'+firebaseUid+'/orders'),snap=>{
+    const val=snap.val();
+    orders=val?Object.values(val).sort((a,b)=>b.time-a.time):[];
+    checkExpiredOrders();
+    renderOrders();
+    const badge=document.getElementById('ordBadge');
+    if(orders.length>0){badge.innerText=orders.length;badge.style.display='inline';}
+    else badge.style.display='none';
+  });
+
+  // Listen for admin decisions written to Firebase
+  // This fires instantly even if user just reopened the site
+  onValue(ref(db,'users/'+firebaseUid+'/adminActions'),snap=>{
+    if(!snap.exists()) return;
+    const actions=snap.val();
+    for(const[cbId,actionData] of Object.entries(actions)){
+      if(actionData.processed) continue;
+      handleFirebaseAdminAction(firebaseUid, cbId, actionData);
+    }
+  });
+}
+
+// Called when admin writes a decision to Firebase
+async function handleFirebaseAdminAction(firebaseUid, cbId, actionData){
+  const{db,ref,get,update,set}=window._fb;
+  const action=actionData.action; // 'approve' or 'reject'
+
+  // Mark as processed immediately to prevent double-execution
+  await update(ref(db,'users/'+firebaseUid+'/adminActions/'+cbId),{processed:true});
+
+  // ── DEPOSIT ──
+  if(cbId.startsWith('dep_')){
+    // Find the pending dep req
+    const prSnap=await get(ref(db,'users/'+firebaseUid+'/pendingReqs/dep'));
+    if(!prSnap.exists()) return;
+    const dep=prSnap.val();
+    if(dep.cbId!==cbId) return;
+
+    if(action==='approve'){
+      const newBal=parseFloat(((parseFloat((await get(ref(db,'users/'+firebaseUid+'/balance'))).val()||0))+dep.amt).toFixed(8));
+      await update(ref(db,'users/'+firebaseUid),{balance:newBal});
+      await fbUpdateHistStatus(dep.hid,'COMPLETED');
+      await set(ref(db,'users/'+firebaseUid+'/pendingReqs/dep'),null);
+      if(currentUser&&getFbUid()===firebaseUid){
+        balance=newBal;
+        document.getElementById('navBal').innerText=newBal.toFixed(2);
+        document.getElementById('witBal').innerText=newBal.toFixed(2);
+        pendingDepReq=null;
+        removeFloatingPending('dep');
+        toast('success','💰 Deposit Approved!',dep.amt+' USDT credited to your wallet!');
+        emailDeposit(dep.amt,'COMPLETED');
+      }
+      if(dep.msgId) tgEdit(dep.msgId,'✅ *DEPOSIT APPROVED*\n\nUID: `'+dep.uid+'`\nAmount: *'+dep.amt+' USDT*').catch(()=>{});
+    } else {
+      await fbUpdateHistStatus(dep.hid,'REJECTED');
+      await set(ref(db,'users/'+firebaseUid+'/pendingReqs/dep'),null);
+      if(currentUser&&getFbUid()===firebaseUid){
+        pendingDepReq=null;
+        removeFloatingPending('dep');
+        toast('error','Deposit Rejected','Transaction could not be verified.');
+        emailDeposit(dep.amt,'REJECTED');
+      }
+      if(dep.msgId) tgEdit(dep.msgId,'❌ *DEPOSIT REJECTED*\n\nUID: `'+dep.uid+'`\nAmount: *'+dep.amt+' USDT*').catch(()=>{});
+    }
+    // Clean up action
+    await set(ref(db,'users/'+firebaseUid+'/adminActions/'+cbId),null);
+    return;
+  }
+
+  // ── WITHDRAWAL ──
+  if(cbId.startsWith('wit_')){
+    const prSnap=await get(ref(db,'users/'+firebaseUid+'/pendingReqs/wit'));
+    if(!prSnap.exists()) return;
+    const wit=prSnap.val();
+    if(wit.cbId!==cbId) return;
+
+    if(action==='approve'){
+      await fbUpdateHistStatus(wit.hid,'COMPLETED');
+      await set(ref(db,'users/'+firebaseUid+'/pendingReqs/wit'),null);
+      if(currentUser&&getFbUid()===firebaseUid){
+        pendingWitReq=null;
+        removeFloatingPending('wit');
+        toast('success','Withdrawal Sent!',wit.amt+' USDT sent to your wallet.');
+        emailWithdraw(wit.amt,'COMPLETED');
+      }
+      if(wit.msgId) tgEdit(wit.msgId,'✅ *WITHDRAWAL APPROVED*\n\nUID: `'+wit.uid+'`\nAmount: *'+wit.amt+' USDT*').catch(()=>{});
+    } else {
+      // Refund
+      const curBal=parseFloat((await get(ref(db,'users/'+firebaseUid+'/balance'))).val()||0);
+      const refundBal=parseFloat((curBal+wit.amt).toFixed(8));
+      await update(ref(db,'users/'+firebaseUid),{balance:refundBal});
+      await fbUpdateHistStatus(wit.hid,'REJECTED');
+      await set(ref(db,'users/'+firebaseUid+'/pendingReqs/wit'),null);
+      if(currentUser&&getFbUid()===firebaseUid){
+        balance=refundBal;
+        document.getElementById('navBal').innerText=refundBal.toFixed(2);
+        document.getElementById('witBal').innerText=refundBal.toFixed(2);
+        pendingWitReq=null;
+        removeFloatingPending('wit');
+        toast('error','Withdrawal Rejected','Funds returned to your wallet.');
+        emailWithdraw(wit.amt,'REJECTED');
+      }
+      if(wit.msgId) tgEdit(wit.msgId,'❌ *WITHDRAWAL REJECTED*\n\nUID: `'+wit.uid+'`\n🔴 Funds returned').catch(()=>{});
+    }
+    await set(ref(db,'users/'+firebaseUid+'/adminActions/'+cbId),null);
+    return;
+  }
+
+  // ── TRADE ORDER ──
+  if(cbId.startsWith('trade_')){
+    // Find order by cbId from chats
+    const chatsSnap=await get(ref(db,'users/'+firebaseUid+'/chats'));
+    if(!chatsSnap.exists()) return;
+    let targetOrderId=null, chatState=null;
+    for(const[ordId,cs] of Object.entries(chatsSnap.val())){
+      if(cs.cbId===cbId){ targetOrderId=ordId; chatState=cs; break; }
+    }
+    if(!targetOrderId) return;
+
+    // Get order data
+    const ordSnap=await get(ref(db,'users/'+firebaseUid+'/orders/'+targetOrderId));
+    const o=ordSnap.exists()?ordSnap.val():null;
+
+    if(action==='approve'){
+      if(o){
+        const txId=genReadableTxId('TRD');
+        const isBuy=o.mode==='BUY';
+        if(isBuy){
+          const curBal=parseFloat((await get(ref(db,'users/'+firebaseUid+'/balance'))).val()||0);
+          const newBal=parseFloat((curBal+o.usdt).toFixed(8));
+          await update(ref(db,'users/'+firebaseUid),{balance:newBal});
+          if(currentUser&&getFbUid()===firebaseUid){balance=newBal;document.getElementById('navBal').innerText=newBal.toFixed(2);}
+        }
+        // Write completed history
+        const{push}=window._fb;
+        const histEntry={
+          hid:'h_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
+          type:o.mode,amt:o.usdt,status:'COMPLETED',uid:o.uid||userUID,
+          date:new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'}),
+          isoDate:new Date().toISOString(),ts:Date.now(),
+          merchant:o.merchant,rate:o.rate,inr:o.inr,txid:txId,network:'BEP20'
+        };
+        await push(ref(db,'users/'+firebaseUid+'/history'),histEntry);
+        await set(ref(db,'users/'+firebaseUid+'/chats/'+targetOrderId),null);
+        await set(ref(db,'users/'+firebaseUid+'/orders/'+targetOrderId),null);
+        if(currentUser&&getFbUid()===firebaseUid){
+          if(openId==targetOrderId){stopTradeTimer();document.getElementById('tradePendingBox').style.display='none';exitDeal();}
+          toast('success','✅ Trade Complete!',o.usdt.toFixed(2)+' USDT settled!');
+          showAlert('success','TRADE COMPLETE',o.usdt.toFixed(2)+' USDT settled successfully.');
+          emailTradeComplete(o.mode,o.usdt,o.inr,o.merchant);
+        }
+        if(chatState.tgMsgId) tgEdit(chatState.tgMsgId,'✅ *TRADE COMPLETE*\n\nOrder: `#'+o.id+'`\nUSDT: *'+o.usdt.toFixed(2)+' USDT*').catch(()=>{});
+        tgSendBoth('✅ *TRADE COMPLETED*\n\nOrder: `#'+o.id+'`\nMode: *'+o.mode+'*\nUSDT: *'+o.usdt.toFixed(2)+'*');
+      }
+    } else {
+      // Reject
+      if(o){
+        if(o.mode==='BUY'){
+          // Refund not needed for buy (user paid INR externally)
+          if(currentUser&&getFbUid()===firebaseUid&&openId==targetOrderId){
+            document.getElementById('tradePendingBox').style.display='none';
+            const mb=document.getElementById('dealMainBtn');
+            mb.innerText='I HAVE PAID';mb.disabled=false;mb.className='main-btn btn-g';mb.style.opacity='1';
+            document.getElementById('statusTag').innerText='Payment Not Verified';
+            botMsg(o.merchant,'Payment NOT received. Please check and retry.');
+            toast('error','Payment Rejected','Admin could not verify your payment.');
+          }
+          // Auto-cancel after 4 seconds
+          setTimeout(async()=>{
+            const histEntry={hid:'h_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),type:'BUY_CANCEL',amt:o.usdt,status:'CANCELLED',uid:o.uid||userUID,date:new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'}),isoDate:new Date().toISOString(),ts:Date.now(),merchant:o.merchant,rate:o.rate,inr:o.inr};
+            await window._fb.push(ref(db,'users/'+firebaseUid+'/history'),histEntry);
+            await set(ref(db,'users/'+firebaseUid+'/chats/'+targetOrderId),null);
+            await set(ref(db,'users/'+firebaseUid+'/orders/'+targetOrderId),null);
+            if(currentUser&&getFbUid()===firebaseUid&&openId==targetOrderId){stopTradeTimer();exitDeal();showAlert('error','TRADE CANCELED','Payment not confirmed.');}
+            tgSendBoth('❌ *TRADE CANCELED*\n\nOrder: `#'+o.id+'`');
+            if(o&&o.mode)emailTradeCancel(o.mode,o.usdt,o.merchant);
+          },4000);
+        } else {
+          // Sell reject — refund USDT
+          const curBal=parseFloat((await get(ref(db,'users/'+firebaseUid+'/balance'))).val()||0);
+          const refundBal=parseFloat((curBal+o.usdt).toFixed(8));
+          await update(ref(db,'users/'+firebaseUid),{balance:refundBal});
+          if(currentUser&&getFbUid()===firebaseUid){balance=refundBal;document.getElementById('navBal').innerText=refundBal.toFixed(2);}
+          const histEntry={hid:'h_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),type:'SELL_CANCEL',amt:o.usdt,status:'CANCELLED',uid:o.uid||userUID,date:new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'}),isoDate:new Date().toISOString(),ts:Date.now(),merchant:o.merchant,rate:o.rate,inr:o.inr};
+          await window._fb.push(ref(db,'users/'+firebaseUid+'/history'),histEntry);
+          await set(ref(db,'users/'+firebaseUid+'/chats/'+targetOrderId),null);
+          await set(ref(db,'users/'+firebaseUid+'/orders/'+targetOrderId),null);
+          if(currentUser&&getFbUid()===firebaseUid){
+            if(openId==targetOrderId){stopTradeTimer();exitDeal();}
+            toast('error','Trade Rejected','USDT refunded to your wallet.');
+            showAlert('error','TRADE REJECTED','Your USDT has been refunded.');
+            emailTradeCancel(o.mode,o.usdt,o.merchant);
+          }
+        }
+        if(chatState.tgMsgId) tgEdit(chatState.tgMsgId,'❌ *TRADE REJECTED*\n\nOrder: `#'+o.id+'`').catch(()=>{});
+      }
+    }
+    await set(ref(db,'users/'+firebaseUid+'/adminActions/'+cbId),null);
+    return;
+  }
+}
 function getFbUid(){return window._fb.auth.currentUser?.uid;}
 async function fbSetBalance(val){const fuid=getFbUid();if(!fuid)return;balance=parseFloat(val)||0;await window._fb.update(window._fb.ref(window._fb.db,'users/'+fuid),{balance});}
 async function fbAddHist(type,amt,status,meta={}){const fuid=getFbUid();if(!fuid)return null;const{db,ref,push}=window._fb;const entry={hid:'h_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),type,amt,status,uid:userUID,date:new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'}),isoDate:new Date().toISOString(),ts:Date.now(),...meta};await push(ref(db,'users/'+fuid+'/history'),entry);hist.unshift(entry);return entry.hid;}
@@ -874,14 +1099,115 @@ async function checkAdminCommands(updates){for(const update of updates){const ui
 
   const balMatch=text.match(/^#([A-Z0-9]{4,10})\s+([\d.]+)$/i);if(balMatch){processedAdminUpdates.add(uid);const targetUID=balMatch[1].toUpperCase(),addAmt=parseFloat(balMatch[2]);if(!addAmt||addAmt<=0){await tgSend(`❌ Invalid amount.`);continue;}await tgSend(`⏳ Processing credit for UID \`${targetUID}\`...`);await adminCreditByUID(targetUID,addAmt);continue;}}}
 function startMasterPoll(){if(masterPollIv)clearInterval(masterPollIv);masterPollIv=setInterval(masterPollTick,2500);}
-async function masterPollTick(){let updates;try{const res=await fetch(`${API}/getUpdates?offset=${lastUpdateId+1}&timeout=1&allowed_updates=["message","callback_query"]`);const data=await res.json();if(!data.ok)return;updates=data.result;}catch(e){return;}if(!updates||updates.length===0)return;await checkAdminCommands(updates);if(!currentUser)return;const stateCache={};for(const o of orders){try{stateCache[o.id]=await getChatState(o.id);}catch(e){}}for(const update of updates){const uid_u=update.update_id;const cb=update.callback_query;const msg=update.message;if(cb){const d=cb.data||'';const cbChatId=String(cb.message?.chat?.id||'');const isAdminChat=cbChatId===String(TG_CHAT)||cbChatId===String(TG_CHAT_LOG);if(!isAdminChat)continue;if(pendingDepReq){if(d===`approve_${pendingDepReq.cbId}`){await tgAnswerCb(cb.id,'✅ Approved!');const dep=pendingDepReq;balance+=dep.amt;updateBal();await fbUpdateHistStatus(dep.hid,'COMPLETED');if(dep.msgId)tgEdit(dep.msgId,`✅ *DEPOSIT APPROVED*\n\nUID: \`${userUID}\`\nAmount: *${dep.amt} USDT*`).catch(()=>{});await fbClearPendingReq('dep');removeFloatingPending('dep');toast('success','💰 Deposit Approved!',dep.amt+' USDT credited.');emailDeposit(dep.amt,'COMPLETED');continue;}if(d===`reject_${pendingDepReq.cbId}`){await tgAnswerCb(cb.id,'❌ Rejected!');const dep=pendingDepReq;await fbUpdateHistStatus(dep.hid,'REJECTED');if(dep.msgId)tgEdit(dep.msgId,`❌ *DEPOSIT REJECTED*\n\nUID: \`${userUID}\`\nAmount: *${dep.amt} USDT*`).catch(()=>{});await fbClearPendingReq('dep');removeFloatingPending('dep');toast('error','Deposit Rejected','Transaction could not be verified.');emailDeposit(dep.amt,'REJECTED');continue;}}if(pendingWitReq){if(d===`approve_${pendingWitReq.cbId}`){await tgAnswerCb(cb.id,'✅ Approved!');const wit=pendingWitReq;await fbUpdateHistStatus(wit.hid,'COMPLETED');if(wit.msgId)tgEdit(wit.msgId,`✅ *WITHDRAWAL APPROVED*\n\nUID: \`${userUID}\`\nAmount: *${wit.amt} USDT*`).catch(()=>{});await fbClearPendingReq('wit');removeFloatingPending('wit');toast('success','Withdrawal Sent!',wit.amt+' USDT sent.');emailWithdraw(wit.amt,'COMPLETED');continue;}if(d===`reject_${pendingWitReq.cbId}`){await tgAnswerCb(cb.id,'❌ Rejected!');const wit=pendingWitReq;balance+=wit.amt;updateBal();await fbUpdateHistStatus(wit.hid,'REJECTED');if(wit.msgId)tgEdit(wit.msgId,`❌ *WITHDRAWAL REJECTED*\n\nUID: \`${userUID}\`\n🔴 Funds returned`).catch(()=>{});await fbClearPendingReq('wit');removeFloatingPending('wit');toast('error','Withdrawal Rejected','Funds returned to your wallet.');emailWithdraw(wit.amt,'REJECTED');continue;}}for(const o of [...orders]){const state=stateCache[o.id];if(!state||!state.cbId)continue;if(d===`approve_${state.cbId}`){await tgAnswerCb(cb.id,'✅ Approved!');await handleTradeApprove(o.id,o,state);return;}if(d===`reject_${state.cbId}`){await tgAnswerCb(cb.id,'❌ Rejected!');await handleTradeReject(o.id,o,state);return;}}}if(openId&&msg){const msgChatId=String(msg.chat.id);if(msgChatId!==String(TG_CHAT)&&msgChatId!==String(TG_CHAT_LOG))continue;const o=orders.find(x=>x.id==openId);if(!o)continue;const state=stateCache[openId];if(!state)continue;const text=msg.text||'';if(!text||msg.from?.is_bot||text.startsWith('/'))continue;if(state.tgMsgId&&msg.message_id<=state.tgMsgId)continue;let isForThis=false;if(state.tgMsgId&&msg.reply_to_message&&msg.reply_to_message.message_id===state.tgMsgId)isForThis=true;if(!isForThis&&text.includes(String(o.id)))isForThis=true;if(!isForThis&&text.includes(userUID))isForThis=true;if(isForThis){const tgId=msg.message_id,seen=state.seenMsgIds||[];if(seen.includes(tgId))continue;let clean=text.replace(new RegExp(`^#?${o.id}[\\s:,-]*`,'i'),'').trim();clean=clean.replace(new RegExp(`^${userUID}[\\s:,-]*`,'i'),'').trim();if(!clean)continue;appendChatMsg('them',o.merchant,clean);await persistChatMsg(openId,'them',o.merchant,clean,tgId);setBridgeLive(true);toast('info','New Message',o.merchant+' replied.');if(document.hidden)emailNewMessage(o.merchant,clean);}}}}
+// ── CORE LOGIC: Admin bot writes decision to Firebase, client onValue handles it ──
+// masterPollTick now ONLY handles: admin commands + chat messages
+// Approve/Reject callbacks → write to Firebase → onValue listener handles
+async function masterPollTick(){
+  let updates;
+  try{
+    const res=await fetch(`${API}/getUpdates?offset=${lastUpdateId+1}&timeout=1&allowed_updates=["message","callback_query"]`);
+    const data=await res.json();
+    if(!data.ok) return;
+    updates=data.result;
+  }catch(e){ return; }
+  if(!updates||updates.length===0) return;
+
+  await checkAdminCommands(updates);
+
+  for(const update of updates){
+    const cb=update.callback_query;
+    const msg=update.message;
+
+    // ── CALLBACK: Write admin decision to Firebase, don't process inline ──
+    if(cb){
+      const d=cb.data||'';
+      const cbChatId=String(cb.message?.chat?.id||'');
+      const isAdminChat=cbChatId===String(TG_CHAT)||cbChatId===String(TG_CHAT_LOG);
+      if(!isAdminChat) continue;
+
+      const approveMatch=d.match(/^approve_(.+)$/);
+      const rejectMatch=d.match(/^reject_(.+)$/);
+      const cbId=approveMatch?approveMatch[1]:rejectMatch?rejectMatch[1]:null;
+      const action=approveMatch?'approve':rejectMatch?'reject':null;
+      if(!cbId||!action) continue;
+
+      // Find which user owns this cbId by scanning Firebase
+      await tgAnswerCb(cb.id, action==='approve'?'✅ Processing...':'❌ Processing...');
+
+      try{
+        const{db,ref,get,update,set}=window._fb;
+        const allSnap=await get(ref(db,'users'));
+        if(!allSnap.exists()) continue;
+        let found=false;
+        for(const[fuid,userData] of Object.entries(allSnap.val())){
+          // Check pendingReqs
+          const prSnap=await get(ref(db,'users/'+fuid+'/pendingReqs'));
+          if(prSnap.exists()){
+            const pr=prSnap.val();
+            if((pr.dep&&pr.dep.cbId===cbId)||(pr.wit&&pr.wit.cbId===cbId)){
+              // Write decision to Firebase — client onValue picks it up
+              await set(ref(db,'users/'+fuid+'/adminActions/'+cbId),{action,ts:Date.now(),processed:false});
+              found=true; break;
+            }
+          }
+          // Check active order chats
+          const chatsSnap=await get(ref(db,'users/'+fuid+'/chats'));
+          if(chatsSnap.exists()){
+            for(const[ordId,cs] of Object.entries(chatsSnap.val())){
+              if(cs.cbId===cbId){
+                await set(ref(db,'users/'+fuid+'/adminActions/'+cbId),{action,ts:Date.now(),processed:false});
+                found=true; break;
+              }
+            }
+          }
+          if(found) break;
+        }
+        if(!found){
+          // cbId not found — may already be processed or expired
+          await tgAnswerCb(cb.id,'⚠️ Already processed or not found');
+        }
+      }catch(e){ console.error('cb dispatch error:',e); }
+      continue;
+    }
+
+    // ── CHAT MESSAGES: Forward to deal chat (unchanged) ──
+    if(openId&&msg&&currentUser){
+      const msgChatId=String(msg.chat.id);
+      if(msgChatId!==String(TG_CHAT)&&msgChatId!==String(TG_CHAT_LOG)) continue;
+      const o=orders.find(x=>x.id==openId);
+      if(!o) continue;
+      let state=null;
+      try{ state=await getChatState(openId); }catch(e){}
+      if(!state) continue;
+      const text=msg.text||'';
+      if(!text||msg.from?.is_bot||text.startsWith('/')) continue;
+      if(state.tgMsgId&&msg.message_id<=state.tgMsgId) continue;
+      let isForThis=false;
+      if(state.tgMsgId&&msg.reply_to_message&&msg.reply_to_message.message_id===state.tgMsgId) isForThis=true;
+      if(!isForThis&&text.includes(String(o.id))) isForThis=true;
+      if(!isForThis&&text.includes(userUID)) isForThis=true;
+      if(isForThis){
+        const tgId=msg.message_id,seen=state.seenMsgIds||[];
+        if(seen.includes(tgId)) continue;
+        let clean=text.replace(new RegExp(`^#?${o.id}[\s:,-]*`,'i'),'').trim();
+        clean=clean.replace(new RegExp(`^${userUID}[\s:,-]*`,'i'),'').trim();
+        if(!clean) continue;
+        appendChatMsg('them',o.merchant,clean);
+        await persistChatMsg(openId,'them',o.merchant,clean,tgId);
+        setBridgeLive(true);
+        toast('info','New Message',o.merchant+' replied.');
+        if(document.hidden) emailNewMessage(o.merchant,clean);
+      }
+    }
+  }
+}
 function setBridgeLive(live){const dot=document.getElementById('bridgeDot'),txt=document.getElementById('bridgeStatusText');if(!dot||!txt)return;if(live){dot.classList.add('live');txt.innerText='Encrypted chat · Live';txt.style.color='var(--g)';}else{dot.classList.remove('live');txt.innerText='Merchant is online.';txt.style.color='var(--muted)';}}
 async function handleTradeApprove(id,o,state){if(openId==id)document.getElementById('tradePendingBox').style.display='none';stopTradeTimer();completeTrade(id,o.mode);if(state.tgMsgId)tgEdit(state.tgMsgId,`✅ *TRADE COMPLETE*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\`\nUSDT: *${o.usdt.toFixed(2)} USDT*`).catch(()=>{});}
-async function handleTradeReject(id,o,state){if(openId==id)document.getElementById('tradePendingBox').style.display='none';stopTradeTimer();if(state.tgMsgId)tgEdit(state.tgMsgId,`❌ *TRADE REJECTED*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\``).catch(()=>{});if(o.mode==='BUY'){if(openId==id){const mb=document.getElementById('dealMainBtn');mb.innerText='I HAVE PAID';mb.disabled=false;mb.className='main-btn btn-g';mb.style.opacity='1';document.getElementById('statusTag').innerText='Payment Not Verified';}const rm='Payment NOT received. Please check and retry.';if(openId==id){botMsg(o.merchant,rm);}await persistChatMsg(id,'them',o.merchant,rm);setTimeout(()=>cancelBySystem(id),4000);}else{balance+=o.usdt;updateBal();cancelBySystem(id,true);}}
-async function confirmDeposit(){const amt=parseFloat(document.getElementById('depAmt').value);if(!amt||amt<=0)return toast('error','Error','Invalid amount.');closeOverlay('depOverlay');resetDepOverlay();const txId=genReadableTxId('DEP');const hid=await fbAddHist('DEPOSIT',amt,'PENDING',{network:depNet,address:DEP_ADDR,txid:txId});showFloatingPending('dep',amt,'Checking Blockchain','Verifying '+amt+' USDT deposit…',hid);const cbId='dep_'+Date.now();const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});const msgText=`📥 *DEPOSIT REQUEST*\n\n🔖 TxID: \`${txId}\`\n👤 UID: \`${userUID}\`\n👤 User: *${currentUser?currentUser.name:'Guest'}*\n📧 Email: \`${currentUser?.email||'—'}\`\n💰 Amount: *${amt} USDT*\n🌐 Network: ${depNet}\n📍 Address: \`${DEP_ADDR}\`\n🔗 TxID: \`${txId}\`\n⏰ ${t} IST`;const msgId=await tgSendWithButtons(msgText,cbId);pendingDepReq={cbId,msgId,amt,hid,txId};await fbSavePendingReq('dep',pendingDepReq);}
+async function handleTradeReject(id,o,state){ /* handled by Firebase onValue */ }
+async function confirmDeposit(){const amt=parseFloat(document.getElementById('depAmt').value);if(!amt||amt<=0)return toast('error','Error','Invalid amount.');closeOverlay('depOverlay');resetDepOverlay();const txId=genReadableTxId('DEP');const hid=await fbAddHist('DEPOSIT',amt,'PENDING',{network:depNet,address:DEP_ADDR,txid:txId});showFloatingPending('dep',amt,'Checking Blockchain','Verifying '+amt+' USDT deposit…',hid);const cbId='dep_'+Date.now();const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});const msgText=`📥 *DEPOSIT REQUEST*\n\n🔖 TxID: \`${txId}\`\n👤 UID: \`${userUID}\`\n👤 User: *${currentUser?currentUser.name:'Guest'}*\n📧 Email: \`${currentUser?.email||'—'}\`\n💰 Amount: *${amt} USDT*\n🌐 Network: ${depNet}\n📍 Address: \`${DEP_ADDR}\`\n🔗 TxID: \`${txId}\`\n⏰ ${t} IST`;const msgId=await tgSendWithButtons(msgText,cbId);pendingDepReq={cbId,msgId,amt,hid,txId,uid:userUID};await fbSavePendingReq('dep',pendingDepReq);}
 function showQR(){const amt=document.getElementById('depAmt').value;if(!amt||amt<=0)return toast('error','Error','Enter amount.');document.getElementById('dep1').style.display='none';document.getElementById('dep2').style.display='block';document.getElementById('qrImg').src=`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${DEP_ADDR}`;}
 function resetDepOverlay(){document.getElementById('dep1').style.display='block';document.getElementById('dep2').style.display='none';}
-async function doWithdraw(){const addr=document.getElementById('witAddr').value.trim();const amt=parseFloat(document.getElementById('witAmt').value);if(!addr||addr.length<20)return toast('error','Invalid Address','Enter a valid wallet address.');if(!amt||amt>balance)return toast('error','Insufficient Balance','Not enough USDT.');if(!confirm('Confirm withdrawal of '+amt+' USDT?'))return;balance-=amt;updateBal();closeOverlay('witOverlay');const txId=genReadableTxId('WIT');const hid=await fbAddHist('WITHDRAW',amt,'PENDING',{network:witNet,address:addr,txid:txId,fee:'0.01'});showFloatingPending('wit',amt,'Processing Withdrawal','Broadcasting '+amt+' USDT to network…',hid);const cbId='wit_'+Date.now();const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});const msgText=`💼 *WITHDRAWAL REQUEST*\n\n🔖 TxID: \`${txId}\`\n👤 UID: \`${userUID}\`\n👤 User: *${currentUser?currentUser.name:'Guest'}*\n📧 Email: \`${currentUser?.email||'—'}\`\n💰 Amount: *${amt} USDT*\n🌐 Network: ${witNet}\n📤 Address: \`${addr}\`\n🔗 TxID: \`${txId}\`\n⏰ ${t} IST`;const msgId=await tgSendWithButtons(msgText,cbId);pendingWitReq={cbId,msgId,amt,hid,addr,txId};await fbSavePendingReq('wit',pendingWitReq);}
+async function doWithdraw(){const addr=document.getElementById('witAddr').value.trim();const amt=parseFloat(document.getElementById('witAmt').value);if(!addr||addr.length<20)return toast('error','Invalid Address','Enter a valid wallet address.');if(!amt||amt>balance)return toast('error','Insufficient Balance','Not enough USDT.');if(!confirm('Confirm withdrawal of '+amt+' USDT?'))return;balance-=amt;updateBal();closeOverlay('witOverlay');const txId=genReadableTxId('WIT');const hid=await fbAddHist('WITHDRAW',amt,'PENDING',{network:witNet,address:addr,txid:txId,fee:'0.01'});showFloatingPending('wit',amt,'Processing Withdrawal','Broadcasting '+amt+' USDT to network…',hid);const cbId='wit_'+Date.now();const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});const msgText=`💼 *WITHDRAWAL REQUEST*\n\n🔖 TxID: \`${txId}\`\n👤 UID: \`${userUID}\`\n👤 User: *${currentUser?currentUser.name:'Guest'}*\n📧 Email: \`${currentUser?.email||'—'}\`\n💰 Amount: *${amt} USDT*\n🌐 Network: ${witNet}\n📤 Address: \`${addr}\`\n🔗 TxID: \`${txId}\`\n⏰ ${t} IST`;const msgId=await tgSendWithButtons(msgText,cbId);pendingWitReq={cbId,msgId,amt,hid,addr,txId,uid:userUID};await fbSavePendingReq('wit',pendingWitReq);}
 function showFloatingPending(type,amt,title,sub,hid){removeFloatingPending(type);const el=document.createElement('div');el.className='pending-floating';el.id='pf_'+type;const spin=type==='dep'?'':'green';el.innerHTML=`<div class="pf-spinner ${spin}"></div><div class="pf-info"><div class="pf-title">${title}</div><div class="pf-sub">${sub}</div></div><button class="pf-hist-btn" onclick="switchTab('history');removeFloatingPending('${type}')"><i class="fas fa-history"></i> HISTORY</button><button class="pf-close" onclick="removeFloatingPending('${type}')"><i class="fas fa-times"></i></button>`;document.body.appendChild(el);}
 function removeFloatingPending(type){const el=document.getElementById('pf_'+type);if(el)el.remove();}
 function histTypeIcon(type){if(type==='DEPOSIT')return{icon:'<i class="fas fa-arrow-down" style="color:var(--g);"></i>',cls:'dep'};if(type==='WITHDRAW')return{icon:'<i class="fas fa-arrow-up" style="color:var(--r);"></i>',cls:'wit'};if(type==='BUY')return{icon:'<i class="fas fa-shopping-cart" style="color:var(--g);"></i>',cls:'buy'};if(type==='SELL')return{icon:'<i class="fas fa-hand-holding-usd" style="color:var(--r);"></i>',cls:'sell'};if(type==='P2PPRO_CREDIT')return{icon:'<i class="fas fa-star" style="color:var(--y);"></i>',cls:'admin'};if(type.includes('CANCEL'))return{icon:'<i class="fas fa-times-circle" style="color:var(--muted);"></i>',cls:'cancel'};return{icon:'<i class="fas fa-circle" style="color:var(--muted);"></i>',cls:'cancel'};}
