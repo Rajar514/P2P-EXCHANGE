@@ -675,7 +675,7 @@ const EMAILJS_TEMPLATE_ID = 'template_likq97n';
 const EMAILJS_PUBLIC_KEY  = 'LbECfGw_Oqt2O-Qms';
 const EMAIL_ENABLED = true;
 let currentUser=null,userUID=null,balance=0,hist=[],orders=[],loginMode='signin';
-let fbUnsubBalance=null,fbUnsubHist=null,fbUnsubOrders=null;
+let fbUnsubBalance=null,fbUnsubHist=null,fbUnsubOrders=null,fbUnsubAdminActions=null;
 let pendingDepReq=null,pendingWitReq=null;
 function loadEmailJS(){return new Promise((resolve)=>{if(window.emailjs)return resolve();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';s.onload=()=>{window.emailjs.init(EMAILJS_PUBLIC_KEY);resolve();};s.onerror=()=>resolve();document.head.appendChild(s);});}
 async function sendEmail(subject,message,amount='',status=''){if(!EMAIL_ENABLED)return;if(!currentUser||!currentUser.email)return;try{await loadEmailJS();if(!window.emailjs)return;await window.emailjs.send(EMAILJS_SERVICE_ID,EMAILJS_TEMPLATE_ID,{to_email:currentUser.email,to_name:currentUser.name||'User',subject,message,amount,status,uid:userUID||'',platform:'PRO P2P Terminal'});}catch(e){console.warn('EmailJS send failed:',e);}}
