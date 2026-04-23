@@ -663,10 +663,9 @@ main{padding:12px 14px 30px;}
 </div>
 
 <script>
-const TG_TOKEN    = "8665516559:AAGROglGKRrQl7lx4EyjoV7SkG0LHI-GJW0";
-const TG_CHAT     = "8515209984";
-const TG_CHAT_LOG = "64552009";
-const API         = `https://api.telegram.org/bot${TG_TOKEN}`;
+// ── v5: ALL TELEGRAM CALLS REMOVED FROM FRONTEND ──
+// Backend bot (Render) watches Firebase and handles all TG send/receive.
+// Frontend only writes to Firebase; bot picks it up within 2 seconds.
 const DEP_ADDR    = '0x6473d05d310C09199FacB9F738Cac86e04b68047';
 const TRADE_TIMEOUT_MS = 30 * 60 * 1000;
 const PAID_TIMEOUT_MS  = 24 * 60 * 60 * 1000;
@@ -735,6 +734,33 @@ function subscribeUserData(firebaseUid){
       handleFirebaseAdminAction(firebaseUid, cbId, actionData);
     }
   });
+
+  // v5: Listen for admin chat replies pushed by bot
+  // Bot writes to: users/<uid>/chats/<ordId>/adminMsgs/<key>
+  // Frontend appends to deal chat if currently open + marks seen.
+  if(window._fbUnsubAdminMsgs)window._fbUnsubAdminMsgs();
+  window._fbUnsubAdminMsgs=onValue(ref(db,'users/'+firebaseUid+'/chats'),snap=>{
+    if(!snap.exists())return;
+    const chats=snap.val();
+    for(const[ordId,cs] of Object.entries(chats||{})){
+      if(!cs?.adminMsgs)continue;
+      for(const[mKey,m] of Object.entries(cs.adminMsgs)){
+        if(!m||m.seen)continue;
+        // Mark seen immediately to prevent duplicate display
+        window._fb.update(ref(db,'users/'+firebaseUid+'/chats/'+ordId+'/adminMsgs/'+mKey),{seen:true}).catch(()=>{});
+        const o=orders.find(x=>x.id==ordId);
+        if(openId==ordId&&o){
+          appendChatMsg('them',o.merchant,m.text);
+          persistChatMsg(ordId,'them',o.merchant,m.text);
+          setBridgeLive(true);
+          toast('info','New Message',o.merchant+' replied.');
+        }else if(o){
+          toast('info','New Message','from '+o.merchant);
+          if(document.hidden)emailNewMessage(o.merchant,m.text);
+        }
+      }
+    }
+  });
 }
 
 // Called when admin writes a decision to Firebase
@@ -767,7 +793,7 @@ async function handleFirebaseAdminAction(firebaseUid, cbId, actionData){
         toast('success','💰 Deposit Approved!',dep.amt+' USDT credited to your wallet!');
         emailDeposit(dep.amt,'COMPLETED');
       }
-      if(dep.msgId) tgEdit(dep.msgId,'✅ *DEPOSIT APPROVED*\n\nUID: `'+dep.uid+'`\nAmount: *'+dep.amt+' USDT*').catch(()=>{});
+      // tgEdit removed — bot handles TG message updates
     } else {
       await fbUpdateHistStatus(dep.hid,'REJECTED');
       await set(ref(db,'users/'+firebaseUid+'/pendingReqs/dep'),null);
@@ -777,7 +803,7 @@ async function handleFirebaseAdminAction(firebaseUid, cbId, actionData){
         toast('error','Deposit Rejected','Transaction could not be verified.');
         emailDeposit(dep.amt,'REJECTED');
       }
-      if(dep.msgId) tgEdit(dep.msgId,'❌ *DEPOSIT REJECTED*\n\nUID: `'+dep.uid+'`\nAmount: *'+dep.amt+' USDT*').catch(()=>{});
+      // tgEdit removed — bot handles TG message updates
     }
     // Clean up action
     await set(ref(db,'users/'+firebaseUid+'/adminActions/'+cbId),null);
@@ -800,7 +826,7 @@ async function handleFirebaseAdminAction(firebaseUid, cbId, actionData){
         toast('success','Withdrawal Sent!',wit.amt+' USDT sent to your wallet.');
         emailWithdraw(wit.amt,'COMPLETED');
       }
-      if(wit.msgId) tgEdit(wit.msgId,'✅ *WITHDRAWAL APPROVED*\n\nUID: `'+wit.uid+'`\nAmount: *'+wit.amt+' USDT*').catch(()=>{});
+      // tgEdit removed — bot handles TG message updates
     } else {
       // Refund
       const curBal=parseFloat((await get(ref(db,'users/'+firebaseUid+'/balance'))).val()||0);
@@ -817,7 +843,7 @@ async function handleFirebaseAdminAction(firebaseUid, cbId, actionData){
         toast('error','Withdrawal Rejected','Funds returned to your wallet.');
         emailWithdraw(wit.amt,'REJECTED');
       }
-      if(wit.msgId) tgEdit(wit.msgId,'❌ *WITHDRAWAL REJECTED*\n\nUID: `'+wit.uid+'`\n🔴 Funds returned').catch(()=>{});
+      // tgEdit removed — bot handles TG message updates
     }
     await set(ref(db,'users/'+firebaseUid+'/adminActions/'+cbId),null);
     return;
@@ -872,8 +898,7 @@ async function handleFirebaseAdminAction(firebaseUid, cbId, actionData){
             setTimeout(()=>{exitDeal();},2500);
           }
         }
-        if(chatState.tgMsgId) tgEdit(chatState.tgMsgId,'✅ *TRADE COMPLETE*\n\nOrder: `#'+o.id+'`\nUSDT: *'+o.usdt.toFixed(2)+' USDT*').catch(()=>{});
-        tgSendBoth('✅ *TRADE COMPLETED*\n\nOrder: `#'+o.id+'`\nMode: *'+o.mode+'*\nUSDT: *'+o.usdt.toFixed(2)+'*');
+        // tgEdit + tgSendBoth removed — bot handles all TG notifications
       }
     } else {
       // Reject
@@ -897,7 +922,7 @@ async function handleFirebaseAdminAction(firebaseUid, cbId, actionData){
               await set(ref(db,'users/'+firebaseUid+'/chats/'+targetOrderId),null);
               await set(ref(db,'users/'+firebaseUid+'/orders/'+targetOrderId),null);
               if(currentUser&&getFbUid()===firebaseUid&&openId==targetOrderId){stopTradeTimer();showAlert('error','TRADE CANCELED','Payment not confirmed.');setTimeout(()=>{exitDeal();},2500);}
-              tgSendBoth('❌ *TRADE CANCELED*\n\nOrder: `#'+oSnap.id+'`');
+              // tgSendBoth removed — bot handles TG notifications
               if(oSnap.mode)emailTradeCancel(oSnap.mode,oSnap.usdt,oSnap.merchant);
             }catch(err){console.error('BUY auto-cancel error:',err);}
           },4000);
@@ -921,7 +946,7 @@ async function handleFirebaseAdminAction(firebaseUid, cbId, actionData){
             }
           }
         }
-        if(chatState.tgMsgId) tgEdit(chatState.tgMsgId,'❌ *TRADE REJECTED*\n\nOrder: `#'+o.id+'`').catch(()=>{});
+        // tgEdit removed — bot handles TG message updates
       }
     }
     await set(ref(db,'users/'+firebaseUid+'/adminActions/'+cbId),null);
@@ -991,236 +1016,34 @@ async function saveChatState(id,s){const fuid=getFbUid();if(!fuid)return;await w
 async function clearChatState(id){const fuid=getFbUid();if(!fuid)return;await window._fb.set(window._fb.ref(window._fb.db,'users/'+fuid+'/chats/'+id),null);}
 function startTradeTimer(orderId,endTime,totalMs){stopTradeTimer();timerEndTime=endTime;const total=totalMs||TRADE_TIMEOUT_MS;tradeTimerIv=setInterval(()=>{const now=Date.now(),rem=timerEndTime-now;if(rem<=0){stopTradeTimer();if(openId==orderId){document.getElementById('timerCountdown').innerText='00:00';document.getElementById('timerBarFill').style.width='0%';document.getElementById('timerBarFill').style.background='var(--r)';toast('error','Order Expired','Trade auto-canceled.');setTimeout(()=>cancelBySystem(orderId),1500);}return;}const hours=Math.floor(rem/3600000),mins=Math.floor((rem%3600000)/60000),secs=Math.floor((rem%60000)/1000);const el=document.getElementById('timerCountdown');if(el){el.innerText=hours>0?`${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`:`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;if(rem<5*60*1000)el.classList.add('warn');else el.classList.remove('warn');}const bar=document.getElementById('timerBarFill');if(bar){const pct=Math.max(0,(rem/total)*100);bar.style.width=pct+'%';bar.style.background=pct>50?'var(--g)':pct>20?'var(--y)':'var(--r)';}},1000);}
 function stopTradeTimer(){if(tradeTimerIv){clearInterval(tradeTimerIv);tradeTimerIv=null;}}
-function checkExpiredOrders(){if(!currentUser)return;const now=Date.now();orders.forEach(o=>{if(o.timerEnd&&now>o.timerEnd){if(o.mode==='SELL'){balance+=o.usdt;updateBal();}fbAddHist(o.mode+'_CANCEL',o.usdt,'CANCELLED',{merchant:o.merchant,rate:o.rate,inr:o.inr});clearChatState(o.id);fbRemoveOrder(o.id);tgSendBoth(`⏰ *AUTO-CANCELED*\n\nOrder: \`#${o.id}\`\nUID: \`${userUID}\`\nMode: *${o.mode}*`);emailTradeCancel(o.mode,o.usdt,o.merchant);}});orders=orders.filter(o=>!o.timerEnd||Date.now()<=o.timerEnd);}
-async function tgFetch(endpoint,body){try{const r=await fetch(`${API}/${endpoint}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return await r.json();}catch(e){return{ok:false};}}
-async function tgSend(text){return tgFetch('sendMessage',{chat_id:TG_CHAT,text,parse_mode:'Markdown'});}
-async function tgLog(text){return tgFetch('sendMessage',{chat_id:TG_CHAT_LOG,text,parse_mode:'Markdown'});}
-async function tgSendBoth(text){tgSend(text);tgLog(text);}
-async function tgSendWithButtons(text,cbId){const keyboard={inline_keyboard:[[{text:'✅ APPROVE',callback_data:'approve_'+cbId},{text:'❌ REJECT',callback_data:'reject_'+cbId}]]};const d=await tgFetch('sendMessage',{chat_id:TG_CHAT,text,parse_mode:'Markdown',reply_markup:keyboard});await tgFetch('sendMessage',{chat_id:TG_CHAT_LOG,text,parse_mode:'Markdown',reply_markup:keyboard});return d.ok?d.result.message_id:null;}
-async function tgAnswerCb(cbQueryId,text){return tgFetch('answerCallbackQuery',{callback_query_id:cbQueryId,text});}
-async function tgEdit(msgId,text){return tgFetch('editMessageText',{chat_id:TG_CHAT,message_id:msgId,text,parse_mode:'Markdown'});}
-async function handleAllStatsCommand(){const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});await tgSend([`📊 *SITE STATS*`,``,`🕐 ${t} IST`,``,`ℹ️ Stats stored in Firebase Console.`].join('\n'));}
-async function adminCreditByUID(targetUID,addAmt){const{db,ref,get,update,push}=window._fb;try{const allUsersSnap=await get(ref(db,'users'));if(!allUsersSnap.exists()){await tgSend(`❌ Database empty.`);return;}let found=false;for(const[firebaseUid,userData]of Object.entries(allUsersSnap.val())){if((userData.uid||'').toUpperCase()!==targetUID.toUpperCase())continue;found=true;const oldBal=parseFloat(userData.balance||0);const newBal=parseFloat((oldBal+addAmt).toFixed(8));await update(ref(db,'users/'+firebaseUid),{balance:newBal});const histEntry={hid:'h_admin_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),type:'P2PPRO_CREDIT',amt:addAmt,status:'COMPLETED',uid:userData.uid||targetUID,date:new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'}),isoDate:new Date().toISOString(),ts:Date.now(),sender:'P2PPRO',note:'P2PPRO sended you '+addAmt+' USDT',network:'INTERNAL',txid:'p2ppro_'+Date.now()};await push(ref(db,'users/'+firebaseUid+'/history'),histEntry);if(currentUser&&(userUID||'').toUpperCase()===targetUID.toUpperCase()){balance=newBal;document.getElementById('navBal').innerText=newBal.toFixed(2);document.getElementById('witBal').innerText=newBal.toFixed(2);hist.unshift(histEntry);renderHist();toast('success','🎉 P2PPRO Credit!','P2PPRO sended you '+addAmt+' USDT');showAlert('success','BALANCE CREDITED!','P2PPRO sended you '+addAmt+' USDT\n\nNew Balance: '+newBal.toFixed(2)+' USDT');}await tgSendBoth(`✅ *BALANCE CREDITED*\n\n👤 UID: \`${targetUID}\`\n👤 User: *${userData.name||'Unknown'}*\n📧 ${userData.email||'—'}\n➕ Added: *+${addAmt} USDT*\n💰 New: *${newBal.toFixed(2)} USDT*`);break;}if(!found)await tgSend(`❌ *UID Not Found*\n\nUID \`${targetUID}\` does not exist.`);}catch(e){console.error(e);await tgSend(`❌ *Error:* ${e.message}`);}}
-async function lookupTxStatus(txid){
-  // Search all users' history for this txid
-  const{db,ref,get}=window._fb;
-  try{
-    const snap=await get(ref(db,'users'));
-    if(!snap.exists()) return null;
-    for(const[fuid,userData] of Object.entries(snap.val())){
-      const histSnap=await get(ref(db,'users/'+fuid+'/history'));
-      if(!histSnap.exists()) continue;
-      for(const[key,h] of Object.entries(histSnap.val())){
-        if((h.txid||'').toUpperCase()===txid.toUpperCase()||
-           (h.hid||'').toUpperCase()===txid.toUpperCase()){
-          return {h, fuid, key, userData};
-        }
-      }
-      // Also check active orders
-      const ordSnap=await get(ref(db,'users/'+fuid+'/orders'));
-      if(ordSnap.exists()){
-        for(const[key,o] of Object.entries(ordSnap.val())){
-          const ordId='ORD-'+String(o.id);
-          if(ordId.toUpperCase()===txid.toUpperCase()||String(o.id)===txid){
-            return {order:o, fuid, key, userData};
-          }
-        }
-      }
-    }
-  }catch(e){console.error('lookupTxStatus:',e);}
-  return null;
-}
-
-async function checkAdminCommands(updates){for(const update of updates){const uid=update.update_id;if(uid>lastUpdateId)saveLastUpdateId(uid);if(processedAdminUpdates.has(uid))continue;const msg=update.message;if(!msg)continue;const text=(msg.text||'').trim();const chatId=String(msg.chat.id);if(chatId!==String(TG_CHAT)&&chatId!==String(TG_CHAT_LOG))continue;if(text==='/allstats'){processedAdminUpdates.add(uid);await handleAllStatsCommand();continue;}
-  if(text==='/txhelp'||text==='/help'){
-    processedAdminUpdates.add(uid);
-    await tgSend(`📖 *PRO P2P BOT COMMANDS*\n\n*Transaction Lookup:*\n\`#DEP-XXXXXX\` — Check deposit status\n\`#WIT-XXXXXX\` — Check withdrawal status\n\`#TRD-XXXXXX\` — Check completed trade\n\`#ORD-123456789\` — Check active order\n\n*If PENDING* → Sends ✅/❌ buttons again\n*If COMPLETED/REJECTED* → Shows status only (no buttons)\n\n*Balance Credit:*\n\`#UID AMOUNT\` — Credit balance to user\nExample: \`#ABC123 50\`\n\n*Stats:*\n\`/allstats\` — Site statistics\n\`/txhelp\` — This help message`);
-    continue;
-  }
-
-  // ── #TXID status lookup ──
-  // Matches: #DEP-XXXXXX  #WIT-XXXXXX  #TRD-XXXXXX  #ORD-123456789  #h_xxxxx
-  const txMatch=text.match(/^#([A-Z0-9_\-]{4,20})\s*$/i);
-  if(txMatch&&!text.match(/^#([A-Z0-9]{4,10})\s+([\d.]+)$/i)){
-    processedAdminUpdates.add(uid);
-    const txid=txMatch[1].toUpperCase();
-    await tgSend(`🔍 Looking up: \`${txid}\`...`);
-    const result=await lookupTxStatus(txid);
-    if(!result){
-      await tgSend(`❌ *Not Found*\n\nNo transaction found for \`${txid}\`\n\nUsage:\n\`#DEP-XXXXXX\` — deposit\n\`#WIT-XXXXXX\` — withdrawal\n\`#TRD-XXXXXX\` — trade\n\`#ORD-123456789\` — order`);
-      continue;
-    }
-    if(result.order){
-      // Active order (pending trade)
-      const o=result.order;
-      const t=new Date(o.time).toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
-      const cbId='trade_'+o.id+'_'+Date.now();
-      // Get chat state for this order
-      let stateSnap=null;
-      try{
-        const{db,ref,get}=window._fb;
-        stateSnap=await get(ref(db,'users/'+result.fuid+'/chats/'+o.id));
-      }catch(e){}
-      const chatState=stateSnap&&stateSnap.exists()?stateSnap.val():null;
-      const stage=chatState?.dealStage||'init';
-      const msgText=`🔍 *ORDER STATUS*\n\n📋 Order: \`#${o.id}\`\n👤 UID: \`${result.userData.uid||'?'}\`\n👤 User: *${result.userData.name||'?'}*\n📧 \`${result.userData.email||'?'}\`\n\n💹 Mode: *${o.mode}*\n🪙 USDT: *${o.usdt.toFixed(2)} USDT*\n💵 INR: ₹${Number(o.inr).toLocaleString()}\n⏰ ${t} IST\n\n📊 *Status: PENDING*\n🔄 Stage: ${stage}`;
-      if(chatState&&chatState.cbId&&stage==='pending_verify'){
-        // Still pending — send with approve/reject buttons
-        await tgSendWithButtons(msgText,chatState.cbId);
-      } else {
-        await tgSend(msgText+'\n\n⏳ Waiting for user action.');
-      }
-      continue;
-    }
-    if(result.h){
-      const h=result.h;
-      const st=(h.status||'PENDING').toUpperCase();
-      const t=h.date||h.isoDate||'?';
-      const typeIcon={DEPOSIT:'📥',WITHDRAW:'💼',BUY:'🟢',SELL:'🔴',P2PPRO_CREDIT:'⭐',BUY_CANCEL:'❌',SELL_CANCEL:'❌'}[h.type]||'📋';
-      const stIcon={COMPLETED:'✅',REJECTED:'❌',CANCELLED:'🚫',PENDING:'⏳'}[st]||'⏳';
-      let msgText=`🔍 *TRANSACTION STATUS*\n\n${typeIcon} Type: *${h.type}*\n💰 Amount: *${parseFloat(h.amt).toFixed(2)} USDT*\n👤 UID: \`${h.uid||result.userData.uid||'?'}\`\n👤 User: *${result.userData.name||'?'}*\n📧 \`${result.userData.email||'?'}\`\n📅 Date: ${t}\n\n${stIcon} *Status: ${st}*`;
-      if(h.txid) msgText+=`\n🔗 TxID: \`${h.txid}\``;
-      if(h.merchant) msgText+=`\n🏪 Merchant: ${h.merchant}`;
-      if(h.inr) msgText+=`\n💵 INR: ₹${Number(h.inr).toLocaleString()}`;
-      if(h.address) msgText+=`\n📍 Address: \`${String(h.address).slice(0,20)}...\``;
-      if(h.network) msgText+=`\n🌐 Network: ${h.network}`;
-      if(st==='PENDING'){
-        // Still pending — find the cbId from pendingReqs
-        let cbId=null,pendingMsgId=null;
-        try{
-          const{db,ref,get}=window._fb;
-          const pSnap=await get(ref(db,'users/'+result.fuid+'/pendingReqs'));
-          if(pSnap.exists()){
-            const pr=pSnap.val();
-            if(pr.dep&&pr.dep.hid===h.hid){cbId=pr.dep.cbId;pendingMsgId=pr.dep.msgId;}
-            else if(pr.wit&&pr.wit.hid===h.hid){cbId=pr.wit.cbId;pendingMsgId=pr.wit.msgId;}
-          }
-        }catch(e){}
-        if(cbId){
-          await tgSendWithButtons(msgText+'\n\n⚡ *Re-sending approval buttons:*',cbId);
-        } else {
-          await tgSend(msgText+'\n\n⏳ Pending — buttons may have expired.');
-        }
-      } else {
-        // Completed/rejected/cancelled — no buttons
-        await tgSend(msgText);
-      }
-      continue;
-    }
-    continue;
-  }
-
-  const balMatch=text.match(/^#([A-Z0-9]{4,10})\s+([\d.]+)$/i);if(balMatch){processedAdminUpdates.add(uid);const targetUID=balMatch[1].toUpperCase(),addAmt=parseFloat(balMatch[2]);if(!addAmt||addAmt<=0){await tgSend(`❌ Invalid amount.`);continue;}await tgSend(`⏳ Processing credit for UID \`${targetUID}\`...`);await adminCreditByUID(targetUID,addAmt);continue;}}}
-function startMasterPoll(){if(masterPollIv)clearInterval(masterPollIv);masterPollIv=setInterval(masterPollTick,2500);}
-// ── CORE LOGIC: Admin bot writes decision to Firebase, client onValue handles it ──
-// masterPollTick now ONLY handles: admin commands + chat messages
-// Approve/Reject callbacks → write to Firebase → onValue listener handles
-async function masterPollTick(){
-  let updates;
-  try{
-    const res=await fetch(`${API}/getUpdates?offset=${lastUpdateId+1}&timeout=1&allowed_updates=["message","callback_query"]`);
-    const data=await res.json();
-    if(!data.ok) return;
-    updates=data.result;
-  }catch(e){ return; }
-  if(!updates||updates.length===0) return;
-
-  await checkAdminCommands(updates);
-
-  for(const update of updates){
-    const cb=update.callback_query;
-    const msg=update.message;
-
-    // ── CALLBACK: Write admin decision to Firebase, don't process inline ──
-    if(cb){
-      const d=cb.data||'';
-      const cbChatId=String(cb.message?.chat?.id||'');
-      const isAdminChat=cbChatId===String(TG_CHAT)||cbChatId===String(TG_CHAT_LOG);
-      if(!isAdminChat) continue;
-
-      const approveMatch=d.match(/^approve_(.+)$/);
-      const rejectMatch=d.match(/^reject_(.+)$/);
-      const cbId=approveMatch?approveMatch[1]:rejectMatch?rejectMatch[1]:null;
-      const action=approveMatch?'approve':rejectMatch?'reject':null;
-      if(!cbId||!action) continue;
-
-      // Find which user owns this cbId by scanning Firebase
-      await tgAnswerCb(cb.id, action==='approve'?'✅ Processing...':'❌ Processing...');
-
-      try{
-        const{db,ref,get,update,set}=window._fb;
-        const allSnap=await get(ref(db,'users'));
-        if(!allSnap.exists()) continue;
-        let found=false;
-        for(const[fuid,userData] of Object.entries(allSnap.val())){
-          // Check pendingReqs
-          const prSnap=await get(ref(db,'users/'+fuid+'/pendingReqs'));
-          if(prSnap.exists()){
-            const pr=prSnap.val();
-            if((pr.dep&&pr.dep.cbId===cbId)||(pr.wit&&pr.wit.cbId===cbId)){
-              // Write decision to Firebase — client onValue picks it up
-              await set(ref(db,'users/'+fuid+'/adminActions/'+cbId),{action,ts:Date.now(),processed:false});
-              found=true; break;
-            }
-          }
-          // Check active order chats
-          const chatsSnap=await get(ref(db,'users/'+fuid+'/chats'));
-          if(chatsSnap.exists()){
-            for(const[ordId,cs] of Object.entries(chatsSnap.val())){
-              if(cs.cbId===cbId){
-                await set(ref(db,'users/'+fuid+'/adminActions/'+cbId),{action,ts:Date.now(),processed:false});
-                found=true; break;
-              }
-            }
-          }
-          if(found) break;
-        }
-        if(!found){
-          // cbId not found — may already be processed or expired
-          await tgAnswerCb(cb.id,'⚠️ Already processed or not found');
-        }
-      }catch(e){ console.error('cb dispatch error:',e); }
-      continue;
-    }
-
-    // ── CHAT MESSAGES: Forward to deal chat (unchanged) ──
-    if(openId&&msg&&currentUser){
-      const msgChatId=String(msg.chat.id);
-      if(msgChatId!==String(TG_CHAT)&&msgChatId!==String(TG_CHAT_LOG)) continue;
-      const o=orders.find(x=>x.id==openId);
-      if(!o) continue;
-      let state=null;
-      try{ state=await getChatState(openId); }catch(e){}
-      if(!state) continue;
-      const text=msg.text||'';
-      if(!text||msg.from?.is_bot||text.startsWith('/')) continue;
-      if(state.tgMsgId&&msg.message_id<=state.tgMsgId) continue;
-      let isForThis=false;
-      if(state.tgMsgId&&msg.reply_to_message&&msg.reply_to_message.message_id===state.tgMsgId) isForThis=true;
-      if(!isForThis&&text.includes(String(o.id))) isForThis=true;
-      if(!isForThis&&text.includes(userUID)) isForThis=true;
-      if(isForThis){
-        const tgId=msg.message_id,seen=state.seenMsgIds||[];
-        if(seen.includes(tgId)) continue;
-        let clean=text.replace(new RegExp(`^#?${o.id}[\s:,-]*`,'i'),'').trim();
-        clean=clean.replace(new RegExp(`^${userUID}[\s:,-]*`,'i'),'').trim();
-        if(!clean) continue;
-        appendChatMsg('them',o.merchant,clean);
-        await persistChatMsg(openId,'them',o.merchant,clean,tgId);
-        setBridgeLive(true);
-        toast('info','New Message',o.merchant+' replied.');
-        if(document.hidden) emailNewMessage(o.merchant,clean);
-      }
-    }
-  }
-}
+function checkExpiredOrders(){if(!currentUser)return;const now=Date.now();orders.forEach(o=>{if(o.timerEnd&&now>o.timerEnd){if(o.mode==='SELL'){balance+=o.usdt;updateBal();}fbAddHist(o.mode+'_CANCEL',o.usdt,'CANCELLED',{merchant:o.merchant,rate:o.rate,inr:o.inr});clearChatState(o.id);fbRemoveOrder(o.id);emailTradeCancel(o.mode,o.usdt,o.merchant);}});orders=orders.filter(o=>!o.timerEnd||Date.now()<=o.timerEnd);}
+// ── v5: TG functions are NO-OPS (kept as stubs to avoid touching every call site) ──
+async function tgFetch(){return{ok:true};}
+async function tgSend(){return{ok:true};}
+async function tgLog(){return{ok:true};}
+async function tgSendBoth(){return{ok:true};}
+async function tgSendWithButtons(){return null;}
+async function tgAnswerCb(){return{ok:true};}
+async function tgEdit(){return{ok:true};}
+async function handleAllStatsCommand(){/* moved to bot */}
+// ── v5: ALL ADMIN/POLL/LOOKUP MOVED TO BACKEND BOT (Render) ──
+// Frontend no longer polls Telegram. Bot handles:
+//   * Admin commands (#UID amt, /allstats, #DEP-XXX lookup, etc.)
+//   * Approve/Reject button callbacks (writes adminActions to Firebase)
+//   * Forwarding user chat to Telegram, and admin replies back to Firebase
+// These functions remain as no-op stubs so existing call sites do not break.
+async function adminCreditByUID(){/* moved to bot */}
+async function lookupTxStatus(){return null;}
+async function checkAdminCommands(){/* moved to bot */}
+function startMasterPoll(){/* disabled - bot polls Telegram on Render */}
+async function masterPollTick(){/* disabled - bot handles this */}
 function setBridgeLive(live){const dot=document.getElementById('bridgeDot'),txt=document.getElementById('bridgeStatusText');if(!dot||!txt)return;if(live){dot.classList.add('live');txt.innerText='Encrypted chat · Live';txt.style.color='var(--g)';}else{dot.classList.remove('live');txt.innerText='Merchant is online.';txt.style.color='var(--muted)';}}
 async function handleTradeApprove(id,o,state){ /* handled by Firebase onValue — kept as no-op to avoid double-execution race */ }
 async function handleTradeReject(id,o,state){ /* handled by Firebase onValue */ }
-async function confirmDeposit(){const amt=parseFloat(document.getElementById('depAmt').value);if(!amt||amt<=0)return toast('error','Error','Invalid amount.');closeOverlay('depOverlay');resetDepOverlay();const txId=genReadableTxId('DEP');const hid=await fbAddHist('DEPOSIT',amt,'PENDING',{network:depNet,address:DEP_ADDR,txid:txId});showFloatingPending('dep',amt,'Checking Blockchain','Verifying '+amt+' USDT deposit…',hid);const cbId='dep_'+Date.now();const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});const msgText=`📥 *DEPOSIT REQUEST*\n\n🔖 TxID: \`${txId}\`\n👤 UID: \`${userUID}\`\n👤 User: *${currentUser?currentUser.name:'Guest'}*\n📧 Email: \`${currentUser?.email||'—'}\`\n💰 Amount: *${amt} USDT*\n🌐 Network: ${depNet}\n📍 Address: \`${DEP_ADDR}\`\n🔗 TxID: \`${txId}\`\n⏰ ${t} IST`;const msgId=await tgSendWithButtons(msgText,cbId);pendingDepReq={cbId,msgId,amt,hid,txId,uid:userUID};await fbSavePendingReq('dep',pendingDepReq);}
+async function confirmDeposit(){const amt=parseFloat(document.getElementById('depAmt').value);if(!amt||amt<=0)return toast('error','Error','Invalid amount.');closeOverlay('depOverlay');resetDepOverlay();const txId=genReadableTxId('DEP');const hid=await fbAddHist('DEPOSIT',amt,'PENDING',{network:depNet,address:DEP_ADDR,txid:txId});showFloatingPending('dep',amt,'Checking Blockchain','Verifying '+amt+' USDT deposit…',hid);/* v5: bot will generate cbId & send TG buttons */pendingDepReq={amt,hid,txId,uid:userUID,network:depNet,address:DEP_ADDR,name:currentUser?currentUser.name:'Guest',email:currentUser?.email||'',ts:Date.now()};await fbSavePendingReq('dep',pendingDepReq);}
 function showQR(){const amt=document.getElementById('depAmt').value;if(!amt||amt<=0)return toast('error','Error','Enter amount.');document.getElementById('dep1').style.display='none';document.getElementById('dep2').style.display='block';document.getElementById('qrImg').src=`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${DEP_ADDR}`;}
 function resetDepOverlay(){document.getElementById('dep1').style.display='block';document.getElementById('dep2').style.display='none';}
-async function doWithdraw(){const addr=document.getElementById('witAddr').value.trim();const amt=parseFloat(document.getElementById('witAmt').value);if(!addr||addr.length<20)return toast('error','Invalid Address','Enter a valid wallet address.');if(!amt||amt>balance)return toast('error','Insufficient Balance','Not enough USDT.');if(!confirm('Confirm withdrawal of '+amt+' USDT?'))return;balance-=amt;updateBal();closeOverlay('witOverlay');const txId=genReadableTxId('WIT');const hid=await fbAddHist('WITHDRAW',amt,'PENDING',{network:witNet,address:addr,txid:txId,fee:'0.01'});showFloatingPending('wit',amt,'Processing Withdrawal','Broadcasting '+amt+' USDT to network…',hid);const cbId='wit_'+Date.now();const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});const msgText=`💼 *WITHDRAWAL REQUEST*\n\n🔖 TxID: \`${txId}\`\n👤 UID: \`${userUID}\`\n👤 User: *${currentUser?currentUser.name:'Guest'}*\n📧 Email: \`${currentUser?.email||'—'}\`\n💰 Amount: *${amt} USDT*\n🌐 Network: ${witNet}\n📤 Address: \`${addr}\`\n🔗 TxID: \`${txId}\`\n⏰ ${t} IST`;const msgId=await tgSendWithButtons(msgText,cbId);pendingWitReq={cbId,msgId,amt,hid,addr,txId,uid:userUID};await fbSavePendingReq('wit',pendingWitReq);}
+async function doWithdraw(){const addr=document.getElementById('witAddr').value.trim();const amt=parseFloat(document.getElementById('witAmt').value);if(!addr||addr.length<20)return toast('error','Invalid Address','Enter a valid wallet address.');if(!amt||amt>balance)return toast('error','Insufficient Balance','Not enough USDT.');if(!confirm('Confirm withdrawal of '+amt+' USDT?'))return;balance-=amt;updateBal();closeOverlay('witOverlay');const txId=genReadableTxId('WIT');const hid=await fbAddHist('WITHDRAW',amt,'PENDING',{network:witNet,address:addr,txid:txId,fee:'0.01'});showFloatingPending('wit',amt,'Processing Withdrawal','Broadcasting '+amt+' USDT to network…',hid);/* v5: bot will generate cbId & send TG buttons */pendingWitReq={amt,hid,addr,txId,uid:userUID,network:witNet,name:currentUser?currentUser.name:'Guest',email:currentUser?.email||'',ts:Date.now()};await fbSavePendingReq('wit',pendingWitReq);}
 function showFloatingPending(type,amt,title,sub,hid){removeFloatingPending(type);const el=document.createElement('div');el.className='pending-floating';el.id='pf_'+type;const spin=type==='dep'?'':'green';el.innerHTML=`<div class="pf-spinner ${spin}"></div><div class="pf-info"><div class="pf-title">${title}</div><div class="pf-sub">${sub}</div></div><button class="pf-hist-btn" onclick="switchTab('history');removeFloatingPending('${type}')"><i class="fas fa-history"></i> HISTORY</button><button class="pf-close" onclick="removeFloatingPending('${type}')"><i class="fas fa-times"></i></button>`;document.body.appendChild(el);}
 function removeFloatingPending(type){const el=document.getElementById('pf_'+type);if(el)el.remove();}
 function histTypeIcon(type){if(type==='DEPOSIT')return{icon:'<i class="fas fa-arrow-down" style="color:var(--g);"></i>',cls:'dep'};if(type==='WITHDRAW')return{icon:'<i class="fas fa-arrow-up" style="color:var(--r);"></i>',cls:'wit'};if(type==='BUY')return{icon:'<i class="fas fa-shopping-cart" style="color:var(--g);"></i>',cls:'buy'};if(type==='SELL')return{icon:'<i class="fas fa-hand-holding-usd" style="color:var(--r);"></i>',cls:'sell'};if(type==='P2PPRO_CREDIT')return{icon:'<i class="fas fa-star" style="color:var(--y);"></i>',cls:'admin'};if(type.includes('CANCEL'))return{icon:'<i class="fas fa-times-circle" style="color:var(--muted);"></i>',cls:'cancel'};return{icon:'<i class="fas fa-circle" style="color:var(--muted);"></i>',cls:'cancel'};}
@@ -1247,13 +1070,11 @@ async function handleMainAction(){
   const orderId=openId; // CAPTURE: never let async work write to a different order
   const o=orders.find(x=>x.id==orderId);if(!o)return;
   const mb=document.getElementById('dealMainBtn');
-  // PERSIST cbId BEFORE sending to Telegram so admin pressing the button
-  // immediately can always find a matching chat record.
-  const cbId='trade_'+o.id+'_'+Date.now();
+  // v5: just write dealStage='pending_verify' to Firebase. Bot will:
+  //   1. detect it within 2s, generate cbId, send approve/reject buttons
+  //   2. write cbId + tgMsgId back to chats/<orderId>
+  //   3. on admin click, write to adminActions/<cbId> → frontend reacts
   let state=await getChatState(orderId)||{messages:[],tgMsgId:null,cbId:null,dealStage:'init',upiSubmitted:false,seenMsgIds:[]};
-  state.dealStage='pending_verify';
-  state.cbId=cbId;
-  await saveChatState(orderId,state);
 
   if(o.mode==='BUY'){
     const txt=`I have paid ₹${o.inr.toLocaleString()}. Please release USDT.`;
@@ -1272,15 +1093,12 @@ async function handleMainAction(){
       document.getElementById('tradePendingTitle').innerText='Payment Verification';
       document.getElementById('tradePendingSub').innerText='Quick review for fair deal.';
     }
-    const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
-    const msgText=`💸 *P2P BUY — PAYMENT CLAIMED*\n\n👤 UID: \`${userUID}\`\n👤 User: *${currentUser?currentUser.name:'Guest'}*\n📧 Email: \`${currentUser?.email||'—'}\`\n📋 Order: \`#${o.id}\`\n🏪 Merchant: *${o.merchant}*\n💵 INR Paid: *₹${o.inr.toLocaleString()}*\n🪙 USDT: *${o.usdt.toFixed(2)} USDT*\n📲 UPI: \`${MERCHANT_UPIS.BUY}\`\n⏰ ${t} IST`;
-    const msgId=await tgSendWithButtons(msgText,cbId);
-    // Re-read latest state for THIS order and update tgMsgId without
-    // clobbering newer fields (chat messages, etc.)
+    // Save stage so bot picks it up. Do NOT set cbId — bot generates it.
     const latest=await getChatState(orderId)||state;
-    latest.tgMsgId=msgId;
-    latest.cbId=cbId;
     latest.dealStage='pending_verify';
+    latest.cbId=null;
+    latest.tgMsgId=null;
+    latest.actionRequestedAt=Date.now();
     await saveChatState(orderId,latest);
     if(openId==orderId)setBridgeLive(true);
   }else{
@@ -1292,18 +1110,35 @@ async function handleMainAction(){
       document.getElementById('tradePendingTitle').innerText='USDT Release Pending';
       document.getElementById('tradePendingSub').innerText='Quick review for fair deal.';
     }
-    const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
-    const msgText=`🔓 *P2P SELL — USDT RELEASE REQUEST*\n\n👤 UID: \`${userUID}\`\n📋 Order: \`#${o.id}\`\n🪙 USDT: *${o.usdt.toFixed(2)} USDT*\n💵 INR: *₹${o.inr.toLocaleString()}*\n⏰ ${t} IST`;
-    const msgId=await tgSendWithButtons(msgText,cbId);
     const latest=await getChatState(orderId)||state;
-    latest.tgMsgId=msgId;
-    latest.cbId=cbId;
     latest.dealStage='pending_verify';
+    latest.cbId=null;
+    latest.tgMsgId=null;
+    latest.actionRequestedAt=Date.now();
     await saveChatState(orderId,latest);
     if(openId==orderId)setBridgeLive(true);
   }
 }
-async function sendUserMsg(){const inp=document.getElementById('msgInp'),txt=inp.value.trim();if(!txt)return;inp.value='';const o=orders.find(x=>x.id==openId);if(!o)return;userMsg('You',txt);persistChatMsg(openId,'me','You',txt);const state=await getChatState(openId);const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});const payload={chat_id:TG_CHAT,text:`💬 *USER MSG*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\`\nMsg: "${txt}"\n⏰ ${t} IST`,parse_mode:'Markdown'};if(state&&state.tgMsgId)payload.reply_to_message_id=state.tgMsgId;tgFetch('sendMessage',payload).catch(()=>{});tgFetch('sendMessage',{...payload,chat_id:TG_CHAT_LOG}).catch(()=>{});}
+async function sendUserMsg(){
+  const inp=document.getElementById('msgInp'),txt=inp.value.trim();if(!txt)return;
+  inp.value='';
+  const o=orders.find(x=>x.id==openId);if(!o)return;
+  userMsg('You',txt);
+  persistChatMsg(openId,'me','You',txt);
+  // v5: push raw user message to Firebase under chats/<ordId>/userMsgs
+  // Bot watches this path and forwards to Telegram automatically.
+  try{
+    const fuid=getFbUid();
+    if(fuid){
+      const{db,ref,push}=window._fb;
+      await push(ref(db,'users/'+fuid+'/chats/'+o.id+'/userMsgs'),{
+        text:txt,ts:Date.now(),uid:userUID,
+        date:new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'}),
+        forwarded:false
+      });
+    }
+  }catch(e){console.warn('userMsg push:',e);}
+}
 function botMsg(sender,msg){appendChatMsg('them',sender,msg);}
 function userMsg(sender,msg){appendChatMsg('me',sender,msg);}
 async function persistChatMsg(orderId,type,sender,text,tgMsgId=null){let state=await getChatState(orderId)||{messages:[],tgMsgId:null,cbId:null,dealStage:'init',upiSubmitted:false,seenMsgIds:[]};state.messages.push({type,sender,text,ts:Date.now()});if(tgMsgId){if(!state.seenMsgIds)state.seenMsgIds=[];state.seenMsgIds.push(tgMsgId);}await saveChatState(orderId,state);}
