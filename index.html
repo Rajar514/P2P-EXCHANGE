@@ -1013,6 +1013,7 @@ function copyText(t){navigator.clipboard.writeText(t).catch(()=>{const ta=docume
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 async function getChatState(id){const fuid=getFbUid();if(!fuid)return null;const{db,ref,get}=window._fb;const snap=await get(ref(db,'users/'+fuid+'/chats/'+id));return snap.exists()?snap.val():null;}
 async function saveChatState(id,s){const fuid=getFbUid();if(!fuid)return;await window._fb.set(window._fb.ref(window._fb.db,'users/'+fuid+'/chats/'+id),s);}
+async function patchChatState(id,patch){const fuid=getFbUid();if(!fuid)return;await window._fb.update(window._fb.ref(window._fb.db,'users/'+fuid+'/chats/'+id),patch);}
 async function clearChatState(id){const fuid=getFbUid();if(!fuid)return;await window._fb.set(window._fb.ref(window._fb.db,'users/'+fuid+'/chats/'+id),null);}
 function startTradeTimer(orderId,endTime,totalMs){stopTradeTimer();timerEndTime=endTime;const total=totalMs||TRADE_TIMEOUT_MS;tradeTimerIv=setInterval(()=>{const now=Date.now(),rem=timerEndTime-now;if(rem<=0){stopTradeTimer();if(openId==orderId){document.getElementById('timerCountdown').innerText='00:00';document.getElementById('timerBarFill').style.width='0%';document.getElementById('timerBarFill').style.background='var(--r)';toast('error','Order Expired','Trade auto-canceled.');setTimeout(()=>cancelBySystem(orderId),1500);}return;}const hours=Math.floor(rem/3600000),mins=Math.floor((rem%3600000)/60000),secs=Math.floor((rem%60000)/1000);const el=document.getElementById('timerCountdown');if(el){el.innerText=hours>0?`${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`:`${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;if(rem<5*60*1000)el.classList.add('warn');else el.classList.remove('warn');}const bar=document.getElementById('timerBarFill');if(bar){const pct=Math.max(0,(rem/total)*100);bar.style.width=pct+'%';bar.style.background=pct>50?'var(--g)':pct>20?'var(--y)':'var(--r)';}},1000);}
 function stopTradeTimer(){if(tradeTimerIv){clearInterval(tradeTimerIv);tradeTimerIv=null;}}
@@ -1065,20 +1066,17 @@ async function initTrade(){const v=parseFloat(document.getElementById('actInp').
 const MERCHANT_UPIS={BUY:'navyard@fam',SELL:'navyard@fam'};
 async function openDeal(id,isNew){const o=orders.find(x=>x.id==id);if(!o){openId=null;toast('info','Order Unavailable','This order is no longer active.');return;}openId=id;document.getElementById('dMerch').innerText=o.merchant;document.getElementById('dOrdId').innerText='#'+o.id;document.getElementById('dInr').innerText='₹'+o.inr.toLocaleString();document.getElementById('dUsdt').innerText=o.usdt.toFixed(2)+' USDT';let state=await getChatState(id);if(!state){state={messages:[],tgMsgId:null,cbId:null,dealStage:'init',upiSubmitted:false,seenMsgIds:[]};await saveChatState(id,state);}renderSavedChat(state.messages);setBridgeLive(!!state.tgMsgId);document.getElementById('tradePendingBox').style.display='none';const mb=document.getElementById('dealMainBtn');const paidExtended=(o.timerTotal===PAID_TIMEOUT_MS);const totalMs=o.timerTotal||TRADE_TIMEOUT_MS;if(o.timerEnd&&o.timerEnd>Date.now()){startTradeTimer(id,o.timerEnd,totalMs);if(paidExtended){document.getElementById('timerNote').innerText='Timer extended to 24 hours after payment claimed.';}else{document.getElementById('timerNote').innerText='Order auto-cancels if payment is not confirmed in 30 minutes.';}}else if(o.timerEnd&&o.timerEnd<=Date.now()){document.getElementById('timerCountdown').innerText='EXPIRED';document.getElementById('timerBarFill').style.width='0%';document.getElementById('timerBarFill').style.background='var(--r)';}if(o.mode==='BUY'){document.getElementById('payBox').style.display='block';document.getElementById('sellUpiBox').style.display='none';document.getElementById('merchantUpi').innerText=MERCHANT_UPIS.BUY;const btn=document.getElementById('upiCopyBtn');btn.classList.remove('copied');btn.innerHTML='<i class="fas fa-copy"></i> COPY';if(state.dealStage==='pending_verify'){document.getElementById('statusTag').innerText='Verifying Payment — Admin Review';document.getElementById('tradePendingBox').style.display='block';document.getElementById('tradePendingTitle').innerText='Payment Verification';document.getElementById('tradePendingSub').innerText='Quick review for fair deal.';mb.innerText='VERIFYING...';mb.disabled=true;mb.className='main-btn btn-gray';mb.style.opacity='0.6';}else{document.getElementById('statusTag').innerText='Awaiting Your Payment';mb.innerText='I HAVE PAID';mb.className='main-btn btn-g';mb.disabled=false;mb.style.opacity='1';if(isNew){const m1=`Hi! I'm online. Please pay ₹${o.inr.toLocaleString()} to the UPI shown above.`;const m2=`Once you pay, click 'I HAVE PAID' so I can release your USDT.`;setTimeout(()=>{botMsg(o.merchant,m1);persistChatMsg(id,'them',o.merchant,m1);},1200);setTimeout(()=>{botMsg(o.merchant,m2);persistChatMsg(id,'them',o.merchant,m2);},3000);}}}else{if(state.upiSubmitted){document.getElementById('payBox').style.display='none';document.getElementById('sellUpiBox').style.display='none';if(state.dealStage==='pending_verify'){document.getElementById('statusTag').innerText='Release Under Admin Review';document.getElementById('tradePendingBox').style.display='block';mb.innerText='PROCESSING...';mb.disabled=true;mb.className='main-btn btn-gray';mb.style.opacity='0.6';}else{document.getElementById('statusTag').innerText='Waiting for Buyer Payment';mb.innerText='RELEASE USDT';mb.className='main-btn btn-r';mb.disabled=false;mb.style.opacity='1';}}else{document.getElementById('payBox').style.display='none';document.getElementById('sellUpiBox').style.display='block';document.getElementById('sellInrAmt').innerText=o.inr.toLocaleString();document.getElementById('statusTag').innerText='Enter Your UPI';mb.innerText='RELEASE USDT';mb.className='main-btn btn-r';mb.disabled=true;mb.style.opacity='0.4';if(isNew){const m=`Hello! I'm the buyer. Please share your UPI ID so I can pay ₹${o.inr.toLocaleString()}.`;setTimeout(()=>{botMsg(o.merchant,m);persistChatMsg(id,'them',o.merchant,m);},1500);}}}document.getElementById('dealPage').style.display='flex';}
 function upiChanged(){document.getElementById('submitUpiBtn').style.opacity=document.getElementById('upiInp').value.trim().length>3?'1':'0.5';}
-async function submitUPI(){const upi=document.getElementById('upiInp').value.trim();if(!upi||upi.length<4)return toast('error','Invalid UPI','Enter a valid UPI ID.');const o=orders.find(x=>x.id==openId);let state=await getChatState(openId)||{messages:[],tgMsgId:null,cbId:null,dealStage:'init',upiSubmitted:false,seenMsgIds:[]};state.upiSubmitted=true;state.dealStage='upi_submitted';await saveChatState(openId,state);const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});tgSendBoth(`💳 *SELLER UPI RECEIVED*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\`\nUSDT: *${o.usdt.toFixed(2)} USDT*\nINR: ₹${o.inr.toLocaleString()}\n📲 UPI: \`${upi}\`\n⏰ ${t} IST`);document.getElementById('sellUpiBox').style.display='none';document.getElementById('statusTag').innerText='Waiting for Buyer Payment';const mb=document.getElementById('dealMainBtn');mb.disabled=false;mb.style.opacity='1';const m1=`Got your UPI: ${upi}. Sending ₹${o.inr.toLocaleString()} now.`;const m2=`Payment initiated. Once you receive INR, click RELEASE USDT.`;botMsg(o.merchant,m1);persistChatMsg(openId,'them',o.merchant,m1);setTimeout(()=>{botMsg(o.merchant,m2);persistChatMsg(openId,'them',o.merchant,m2);},5000);userMsg('You','My UPI: '+upi);persistChatMsg(openId,'me','You','My UPI: '+upi);toast('info','UPI Submitted','Waiting for buyer to transfer INR.');}
+async function submitUPI(){const upi=document.getElementById('upiInp').value.trim();if(!upi||upi.length<4)return toast('error','Invalid UPI','Enter a valid UPI ID.');const o=orders.find(x=>x.id==openId);await patchChatState(openId,{upiSubmitted:true,dealStage:'upi_submitted'});const t=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});tgSendBoth(`💳 *SELLER UPI RECEIVED*\n\nUID: \`${userUID}\`\nOrder: \`#${o.id}\`\nUSDT: *${o.usdt.toFixed(2)} USDT*\nINR: ₹${o.inr.toLocaleString()}\n📲 UPI: \`${upi}\`\n⏰ ${t} IST`);document.getElementById('sellUpiBox').style.display='none';document.getElementById('statusTag').innerText='Waiting for Buyer Payment';const mb=document.getElementById('dealMainBtn');mb.disabled=false;mb.style.opacity='1';const m1=`Got your UPI: ${upi}. Sending ₹${o.inr.toLocaleString()} now.`;const m2=`Payment initiated. Once you receive INR, click RELEASE USDT.`;botMsg(o.merchant,m1);persistChatMsg(openId,'them',o.merchant,m1);setTimeout(()=>{botMsg(o.merchant,m2);persistChatMsg(openId,'them',o.merchant,m2);},5000);userMsg('You','My UPI: '+upi);persistChatMsg(openId,'me','You','My UPI: '+upi);toast('info','UPI Submitted','Waiting for buyer to transfer INR.');}
 async function handleMainAction(){
-  const orderId=openId; // CAPTURE: never let async work write to a different order
+  const orderId=openId;
   const o=orders.find(x=>x.id==orderId);if(!o)return;
   const mb=document.getElementById('dealMainBtn');
-  // v5: just write dealStage='pending_verify' to Firebase. Bot will:
-  //   1. detect it within 2s, generate cbId, send approve/reject buttons
-  //   2. write cbId + tgMsgId back to chats/<orderId>
-  //   3. on admin click, write to adminActions/<cbId> → frontend reacts
-  let state=await getChatState(orderId)||{messages:[],tgMsgId:null,cbId:null,dealStage:'init',upiSubmitted:false,seenMsgIds:[]};
+  const actionRequestedAt=Date.now();
+  const actionRequestId=`trd_${orderId}_${actionRequestedAt}_${Math.random().toString(36).slice(2,7)}`;
 
   if(o.mode==='BUY'){
     const txt=`I have paid ₹${o.inr.toLocaleString()}. Please release USDT.`;
-    userMsg('You',txt);persistChatMsg(orderId,'me','You',txt);
+    userMsg('You',txt);await persistChatMsg(orderId,'me','You',txt);
     const newTimerEnd=Date.now()+PAID_TIMEOUT_MS;
     const oIdx=orders.findIndex(x=>x.id==orderId);
     if(oIdx!==-1)orders[oIdx].timerEnd=newTimerEnd;
@@ -1093,16 +1091,12 @@ async function handleMainAction(){
       document.getElementById('tradePendingTitle').innerText='Payment Verification';
       document.getElementById('tradePendingSub').innerText='Quick review for fair deal.';
     }
-    // Save stage so bot picks it up. Do NOT set cbId — bot generates it.
-    const latest=await getChatState(orderId)||state;
-    latest.dealStage='pending_verify';
-    latest.cbId=null;
-    latest.tgMsgId=null;
-    latest.actionRequestedAt=Date.now();
-    await saveChatState(orderId,latest);
+    await patchChatState(orderId,{dealStage:'pending_verify',cbId:null,tgMsgId:null,actionRequestedAt,actionRequestId,actionType:'buy_paid_claim'});
     if(openId==orderId)setBridgeLive(true);
   }else{
     if(!confirm('CONFIRM: Have you received INR payment?'))return;
+    const txt=`I have received INR payment. Please verify and release this trade.`;
+    userMsg('You',txt);await persistChatMsg(orderId,'me','You',txt);
     if(openId==orderId){
       mb.innerText='PROCESSING...';mb.disabled=true;mb.className='main-btn btn-gray';mb.style.opacity='0.6';
       document.getElementById('statusTag').innerText='Release Under Admin Review';
@@ -1110,12 +1104,7 @@ async function handleMainAction(){
       document.getElementById('tradePendingTitle').innerText='USDT Release Pending';
       document.getElementById('tradePendingSub').innerText='Quick review for fair deal.';
     }
-    const latest=await getChatState(orderId)||state;
-    latest.dealStage='pending_verify';
-    latest.cbId=null;
-    latest.tgMsgId=null;
-    latest.actionRequestedAt=Date.now();
-    await saveChatState(orderId,latest);
+    await patchChatState(orderId,{dealStage:'pending_verify',cbId:null,tgMsgId:null,actionRequestedAt,actionRequestId,actionType:'sell_release_request'});
     if(openId==orderId)setBridgeLive(true);
   }
 }
@@ -1141,7 +1130,7 @@ async function sendUserMsg(){
 }
 function botMsg(sender,msg){appendChatMsg('them',sender,msg);}
 function userMsg(sender,msg){appendChatMsg('me',sender,msg);}
-async function persistChatMsg(orderId,type,sender,text,tgMsgId=null){let state=await getChatState(orderId)||{messages:[],tgMsgId:null,cbId:null,dealStage:'init',upiSubmitted:false,seenMsgIds:[]};state.messages.push({type,sender,text,ts:Date.now()});if(tgMsgId){if(!state.seenMsgIds)state.seenMsgIds=[];state.seenMsgIds.push(tgMsgId);}await saveChatState(orderId,state);}
+async function persistChatMsg(orderId,type,sender,text,tgMsgId=null){const state=await getChatState(orderId)||{messages:[],tgMsgId:null,cbId:null,dealStage:'init',upiSubmitted:false,seenMsgIds:[]};const nextMessages=[...(state.messages||[]),{type,sender,text,ts:Date.now()}];const patch={messages:nextMessages};if(tgMsgId)patch.seenMsgIds=[...(state.seenMsgIds||[]),tgMsgId];await patchChatState(orderId,patch);}
 function appendChatMsg(type,sender,text){const box=document.getElementById('chatBox'),d=document.createElement('div');d.className=type==='me'?'msg-me':'msg-them';d.innerHTML=`<div class="msg-sender">${escHtml(sender)}</div>${escHtml(text)}`;box.appendChild(d);box.scrollTop=box.scrollHeight;}
 function renderSavedChat(messages){const box=document.getElementById('chatBox');box.innerHTML=`<div class="escrow-note">🔒 Encrypted · Be respectful</div>`;for(const m of(messages||[])){const d=document.createElement('div');d.className=m.type==='me'?'msg-me':'msg-them';d.innerHTML=`<div class="msg-sender">${escHtml(m.sender)}</div>${escHtml(m.text)}`;box.appendChild(d);}box.scrollTop=box.scrollHeight;}
 async function cancelBySystem(id,alreadyRefunded=false){stopTradeTimer();const idx=orders.findIndex(x=>x.id==id);if(idx===-1)return;const o=orders[idx];if(!alreadyRefunded&&o.mode==='SELL'){balance+=o.usdt;updateBal();}await fbAddHist(o.mode+'_CANCEL',o.usdt,'CANCELLED',{merchant:o.merchant,rate:o.rate,inr:o.inr});await clearChatState(id);await fbRemoveOrder(id);orders.splice(idx,1);tgSendBoth(`❌ *TRADE CANCELED*\n\nOrder: \`#${o.id}\`\nMode: *${o.mode}*`);emailTradeCancel(o.mode,o.usdt,o.merchant);showAlert('error','TRADE CANCELED','Payment not confirmed. Order canceled.');exitDeal();}
