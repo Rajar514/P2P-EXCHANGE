@@ -645,7 +645,19 @@ let fbUnsubBalance=null, fbUnsubHist=null, fbUnsubOrders=null, fbUnsubAdminActio
 let pendingDepReq=null, pendingWitReq=null;
 let loginMode='signin', mode='BUY', depNet='BEP20', witNet='BEP20';
 let tradeTimerIv=null, timerEndTime=null, openId=null, selTrade=null;
-let chatPollIv=null; // Only for chat messages, NOT for approve/reject
+let chatPollIv=null;
+let lastUpdateId = 0;
+
+// ═══════════════════════════════════════════════════════════════
+// PER-USER lastUpdateId (so old message IDs don't bleed across sessions)
+// ═══════════════════════════════════════════════════════════════
+function getLastUpdateId() {
+  return parseInt(localStorage.getItem('p2p_lastUpdateId_' + (userUID || 'guest')) || '0');
+}
+function setLastUpdateId(v) {
+  lastUpdateId = v;
+  localStorage.setItem('p2p_lastUpdateId_' + (userUID || 'guest'), v);
+}
 
 // ═══════════════════════════════════════════════════════════════
 // FIREBASE USER INIT
@@ -680,8 +692,14 @@ window.onFirebaseUser = async function(fbUser) {
     currentUser = userData;
     userUID = userData.uid;
 
+    // Load per-user lastUpdateId
+    lastUpdateId = getLastUpdateId();
+
     subscribeUserData(uid);
     await restorePendingRequests(uid);
+
+    // ── KEY FIX: restore active deal on reload ──
+    await restoreActiveDeal(uid);
 
     document.getElementById('fbLoadingScreen').style.display = 'none';
     closeAuth();
@@ -700,10 +718,32 @@ window.onFirebaseLogout = function() {
   fbUnsubBalance = fbUnsubHist = fbUnsubOrders = fbUnsubAdminActions = fbUnsubChats = null;
   stopChatPoll();
   currentUser = null; userUID = null; balance = 0; hist = []; orders = [];
-  pendingDepReq = null; pendingWitReq = null;
+  pendingDepReq = null; pendingWitReq = null; lastUpdateId = 0;
   document.getElementById('fbLoadingScreen').style.display = 'none';
   updateNavState(); renderOrders(); renderHist();
 };
+
+// ═══════════════════════════════════════════════════════════════
+// RESTORE ACTIVE DEAL ON PAGE RELOAD / RE-LOGIN
+// ═══════════════════════════════════════════════════════════════
+async function restoreActiveDeal(firebaseUid) {
+  try {
+    const { db, ref, get } = window._fb;
+    const ordSnap = await get(ref(db, 'users/' + firebaseUid + '/orders'));
+    if (!ordSnap.exists()) return;
+    const ordMap = ordSnap.val();
+    const now = Date.now();
+    // Get all non-expired active orders
+    const activeOrders = Object.values(ordMap).filter(o => o && o.timerEnd && o.timerEnd > now);
+    if (activeOrders.length === 0) return;
+    // Open the most recent active order
+    const latest = activeOrders.sort((a, b) => b.time - a.time)[0];
+    // Small delay to let UI fully mount
+    setTimeout(() => openDeal(latest.id, false), 900);
+  } catch (e) {
+    console.warn('restoreActiveDeal:', e);
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════
 // SUBSCRIBE — real-time listeners
@@ -739,7 +779,7 @@ function subscribeUserData(firebaseUid) {
     else badge.style.display = 'none';
   });
 
-  // ── ADMIN ACTIONS — this is the key: fires instantly on open ──
+  // Admin Actions — fires instantly on open
   if (fbUnsubAdminActions) fbUnsubAdminActions();
   fbUnsubAdminActions = onValue(ref(db, 'users/' + firebaseUid + '/adminActions'), async snap => {
     if (!snap.exists()) return;
@@ -750,22 +790,18 @@ function subscribeUserData(firebaseUid) {
     }
   });
 
-  // ── CHAT MESSAGES — fires when bot writes reply to Firebase ──
+  // Chat Messages — fires when bot writes reply to Firebase
   if (fbUnsubChats) fbUnsubChats();
   fbUnsubChats = onValue(ref(db, 'users/' + firebaseUid + '/chats'), snap => {
     if (!snap.exists()) return;
     const chats = snap.val();
-    // If deal page is open, re-render chat messages for current order
     if (openId && chats[openId]) {
       const state = chats[openId];
       const msgs = state.messages || [];
-      // Find new messages we haven't shown yet
       const box = document.getElementById('chatBox');
       const shown = box ? box.querySelectorAll('.msg-me,.msg-them').length : 0;
       if (msgs.length > shown) {
-        // Re-render all
         renderSavedChat(msgs);
-        // Toast for new "them" messages
         const newest = msgs[msgs.length - 1];
         if (newest && newest.type === 'them' && newest.ts > Date.now() - 5000) {
           const o = orders.find(x => x.id == openId);
@@ -777,7 +813,7 @@ function subscribeUserData(firebaseUid) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// PROCESS ADMIN ACTION — called from onValue, handles all cases
+// PROCESS ADMIN ACTION
 // ═══════════════════════════════════════════════════════════════
 async function processAdminAction(firebaseUid, actionKey, actionData) {
   const { db, ref, get, update, set, push } = window._fb;
@@ -789,7 +825,7 @@ async function processAdminAction(firebaseUid, actionKey, actionData) {
 
   console.log('Processing admin action:', action, actionKey);
 
-  // ── CREDIT (admin manual credit) ──────────────────────────
+  // ── CREDIT ──────────────────────────────────────────────────
   if (action === 'credit') {
     const newBal = parseFloat(actionData.newBalance || 0);
     balance = newBal;
@@ -798,17 +834,15 @@ async function processAdminAction(firebaseUid, actionKey, actionData) {
     const addAmt = parseFloat(actionData.amount || 0);
     toast('success', '🎉 P2PPRO Credit!', 'P2PPRO sended you ' + addAmt + ' USDT');
     showAlert('success', 'BALANCE CREDITED!', 'P2PPRO sended you ' + addAmt + ' USDT\n\nNew Balance: ' + newBal.toFixed(2) + ' USDT');
-    // Remove action after short delay
     setTimeout(() => set(ref(db, 'users/' + firebaseUid + '/adminActions/' + actionKey), null), 2000);
     return;
   }
 
-  // ── DEPOSIT ───────────────────────────────────────────────
+  // ── DEPOSIT ─────────────────────────────────────────────────
   if (actionKey.startsWith('dep_') || (pendingDepReq && pendingDepReq.cbId === cbId)) {
     const prSnap = await get(ref(db, 'users/' + firebaseUid + '/pendingReqs/dep'));
     if (!prSnap.exists()) { await cleanAction(firebaseUid, actionKey); return; }
     const dep = prSnap.val();
-
     if (action === 'approve') {
       const curBal = parseFloat((await get(ref(db, 'users/' + firebaseUid + '/balance'))).val() || 0);
       const newBal = parseFloat((curBal + dep.amt).toFixed(8));
@@ -834,12 +868,11 @@ async function processAdminAction(firebaseUid, actionKey, actionData) {
     return;
   }
 
-  // ── WITHDRAWAL ────────────────────────────────────────────
+  // ── WITHDRAWAL ──────────────────────────────────────────────
   if (actionKey.startsWith('wit_') || (pendingWitReq && pendingWitReq.cbId === cbId)) {
     const prSnap = await get(ref(db, 'users/' + firebaseUid + '/pendingReqs/wit'));
     if (!prSnap.exists()) { await cleanAction(firebaseUid, actionKey); return; }
     const wit = prSnap.val();
-
     if (action === 'approve') {
       await fbUpdateHistStatus(wit.hid, 'COMPLETED');
       await set(ref(db, 'users/' + firebaseUid + '/pendingReqs/wit'), null);
@@ -848,7 +881,6 @@ async function processAdminAction(firebaseUid, actionKey, actionData) {
       toast('success', 'Withdrawal Sent!', wit.amt + ' USDT sent to your wallet.');
       showAlert('success', 'WITHDRAWAL PROCESSED!', wit.amt + ' USDT has been sent.');
     } else {
-      // Refund
       const curBal = parseFloat((await get(ref(db, 'users/' + firebaseUid + '/balance'))).val() || 0);
       const refundBal = parseFloat((curBal + wit.amt).toFixed(8));
       await update(ref(db, 'users/' + firebaseUid), { balance: refundBal });
@@ -866,9 +898,8 @@ async function processAdminAction(firebaseUid, actionKey, actionData) {
     return;
   }
 
-  // ── TRADE ─────────────────────────────────────────────────
+  // ── TRADE ───────────────────────────────────────────────────
   if (actionKey.startsWith('trade_')) {
-    // Find which order this belongs to
     const chatsSnap = await get(ref(db, 'users/' + firebaseUid + '/chats'));
     if (!chatsSnap.exists()) { await cleanAction(firebaseUid, actionKey); return; }
     let targetOrderId = null, chatState = null;
@@ -876,13 +907,10 @@ async function processAdminAction(firebaseUid, actionKey, actionData) {
       if (cs && cs.cbId === cbId) { targetOrderId = ordId; chatState = cs; break; }
     }
     if (!targetOrderId) { await cleanAction(firebaseUid, actionKey); return; }
-
     const ordSnap = await get(ref(db, 'users/' + firebaseUid + '/orders/' + targetOrderId));
     const o = ordSnap.exists() ? ordSnap.val() : null;
     if (!o) { await cleanAction(firebaseUid, actionKey); return; }
-
     if (action === 'approve') {
-      // Credit USDT for BUY orders
       if (o.mode === 'BUY') {
         const curBal = parseFloat((await get(ref(db, 'users/' + firebaseUid + '/balance'))).val() || 0);
         const newBal = parseFloat((curBal + o.usdt).toFixed(8));
@@ -900,19 +928,11 @@ async function processAdminAction(firebaseUid, actionKey, actionData) {
       });
       await set(ref(db, 'users/' + firebaseUid + '/chats/' + targetOrderId), null);
       await set(ref(db, 'users/' + firebaseUid + '/orders/' + targetOrderId), null);
-
-      // Update UI
-      if (openId == targetOrderId) {
-        stopTradeTimer();
-        document.getElementById('tradePendingBox').style.display = 'none';
-        exitDeal();
-      }
+      if (openId == targetOrderId) { stopTradeTimer(); document.getElementById('tradePendingBox').style.display = 'none'; exitDeal(); }
       toast('success', '✅ Trade Complete!', o.usdt.toFixed(2) + ' USDT settled!');
       showAlert('success', 'TRADE COMPLETE', o.usdt.toFixed(2) + ' USDT has been settled successfully.');
     } else {
-      // REJECT
       if (o.mode === 'BUY') {
-        // Let user retry payment
         if (openId == targetOrderId) {
           document.getElementById('tradePendingBox').style.display = 'none';
           const mb = document.getElementById('dealMainBtn');
@@ -922,7 +942,6 @@ async function processAdminAction(firebaseUid, actionKey, actionData) {
           appendChatMsg('them', o.merchant, 'Payment NOT received. Please verify and retry or cancel.');
           toast('error', 'Payment Rejected', 'Admin could not verify payment.');
         }
-        // Auto-cancel after 10s if still not retried
         setTimeout(async () => {
           const stillExists = (await get(ref(db, 'users/' + firebaseUid + '/orders/' + targetOrderId))).exists();
           if (stillExists) {
@@ -937,7 +956,6 @@ async function processAdminAction(firebaseUid, actionKey, actionData) {
           }
         }, 10000);
       } else {
-        // SELL reject — refund
         const curBal = parseFloat((await get(ref(db, 'users/' + firebaseUid + '/balance'))).val() || 0);
         const refundBal = parseFloat((curBal + o.usdt).toFixed(8));
         await update(ref(db, 'users/' + firebaseUid), { balance: refundBal });
@@ -959,7 +977,6 @@ async function processAdminAction(firebaseUid, actionKey, actionData) {
     return;
   }
 
-  // Unknown action type — clean up
   await cleanAction(firebaseUid, actionKey);
 }
 
@@ -969,12 +986,11 @@ async function cleanAction(firebaseUid, actionKey) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// CHAT POLL — ONLY for TG messages (not approve/reject)
+// CHAT POLL — only for TG messages (not approve/reject)
 // ═══════════════════════════════════════════════════════════════
-let lastUpdateId = parseInt(localStorage.getItem('p2p_lastUpdateId') || '0');
-
 function startChatPoll() {
   if (chatPollIv) clearInterval(chatPollIv);
+  lastUpdateId = getLastUpdateId(); // always sync before starting
   chatPollIv = setInterval(chatPollTick, 3000);
 }
 function stopChatPoll() {
@@ -985,7 +1001,6 @@ async function chatPollTick() {
   if (!currentUser || !openId) return;
   const o = orders.find(x => x.id == openId);
   if (!o) return;
-
   let updates;
   try {
     const res = await fetch(`${API}/getUpdates?offset=${lastUpdateId + 1}&timeout=1&allowed_updates=["message"]`);
@@ -994,12 +1009,10 @@ async function chatPollTick() {
     updates = data.result;
   } catch (e) { return; }
   if (!updates || updates.length === 0) return;
-
   const state = await getChatState(openId);
-
   for (const update of updates) {
     const uid_u = update.update_id;
-    if (uid_u > lastUpdateId) { lastUpdateId = uid_u; localStorage.setItem('p2p_lastUpdateId', uid_u); }
+    if (uid_u > lastUpdateId) { setLastUpdateId(uid_u); }
     const msg = update.message;
     if (!msg) continue;
     const msgChatId = String(msg.chat?.id);
@@ -1008,22 +1021,16 @@ async function chatPollTick() {
     if (!text || msg.from?.is_bot || text.startsWith('/')) continue;
     if (!state) continue;
     if (state.tgMsgId && msg.message_id <= state.tgMsgId) continue;
-
-    // Check if this message is relevant to current order
     const seen = state.seenMsgIds || [];
     if (seen.includes(msg.message_id)) continue;
-
     let isForThis = false;
     if (state.tgMsgId && msg.reply_to_message?.message_id === state.tgMsgId) isForThis = true;
     if (!isForThis && text.includes(String(o.id))) isForThis = true;
     if (!isForThis && text.includes(userUID)) isForThis = true;
     if (!isForThis) continue;
-
     let clean = text.replace(new RegExp(`^#?${o.id}[\\s:,-]*`, 'i'), '').trim();
     clean = clean.replace(new RegExp(`^${userUID}[\\s:,-]*`, 'i'), '').trim();
     if (!clean) continue;
-
-    // Save to Firebase (onValue will auto-render)
     await persistChatMsg(openId, 'them', o.merchant, clean, msg.message_id);
     toast('info', '💬 New Message', o.merchant + ' replied.');
     setBridgeLive(true);
@@ -1285,24 +1292,56 @@ async function openDeal(id, isNew) {
     document.getElementById('sellUpiBox').style.display = 'none';
     document.getElementById('merchantUpi').innerText = MERCHANT_UPIS.BUY;
     const btn = document.getElementById('upiCopyBtn'); btn.classList.remove('copied'); btn.innerHTML = '<i class="fas fa-copy"></i> COPY';
-    if (state.dealStage === 'pending_verify') { document.getElementById('statusTag').innerText = 'Verifying Payment'; document.getElementById('tradePendingBox').style.display = 'block'; document.getElementById('tradePendingTitle').innerText = 'Payment Verification'; document.getElementById('tradePendingSub').innerText = 'Admin reviewing...'; mb.innerText = 'VERIFYING...'; mb.disabled = true; mb.className = 'main-btn btn-gray'; mb.style.opacity = '0.6'; }
-    else { document.getElementById('statusTag').innerText = 'Awaiting Your Payment'; mb.innerText = 'I HAVE PAID'; mb.className = 'main-btn btn-g'; mb.disabled = false; mb.style.opacity = '1'; if (isNew) { const m1 = `Hi! Pay ₹${o.inr.toLocaleString()} to the UPI above, then click I HAVE PAID.`; setTimeout(() => { appendChatMsg('them', o.merchant, m1); persistChatMsg(id, 'them', o.merchant, m1); }, 1200); } }
+
+    if (state.dealStage === 'pending_verify') {
+      // ── RESTORED: payment already claimed, waiting for admin ──
+      document.getElementById('statusTag').innerText = 'Verifying Payment';
+      document.getElementById('tradePendingBox').style.display = 'block';
+      document.getElementById('tradePendingTitle').innerText = 'Payment Verification';
+      document.getElementById('tradePendingSub').innerText = 'Admin reviewing your payment...';
+      mb.innerText = 'VERIFYING...'; mb.disabled = true;
+      mb.className = 'main-btn btn-gray'; mb.style.opacity = '0.6';
+    } else {
+      document.getElementById('statusTag').innerText = 'Awaiting Your Payment';
+      mb.innerText = 'I HAVE PAID'; mb.className = 'main-btn btn-g'; mb.disabled = false; mb.style.opacity = '1';
+      if (isNew) {
+        const m1 = `Hi! Pay ₹${o.inr.toLocaleString()} to the UPI above, then click I HAVE PAID.`;
+        setTimeout(() => { appendChatMsg('them', o.merchant, m1); persistChatMsg(id, 'them', o.merchant, m1); }, 1200);
+      }
+    }
   } else {
     if (state.upiSubmitted) {
-      document.getElementById('payBox').style.display = 'none'; document.getElementById('sellUpiBox').style.display = 'none';
-      if (state.dealStage === 'pending_verify') { document.getElementById('statusTag').innerText = 'USDT Release Under Review'; document.getElementById('tradePendingBox').style.display = 'block'; mb.innerText = 'PROCESSING...'; mb.disabled = true; mb.className = 'main-btn btn-gray'; mb.style.opacity = '0.6'; }
-      else { document.getElementById('statusTag').innerText = 'Waiting for Buyer Payment'; mb.innerText = 'RELEASE USDT'; mb.className = 'main-btn btn-r'; mb.disabled = false; mb.style.opacity = '1'; }
+      document.getElementById('payBox').style.display = 'none';
+      document.getElementById('sellUpiBox').style.display = 'none';
+
+      if (state.dealStage === 'pending_verify') {
+        // ── RESTORED: SELL pending admin review ──
+        document.getElementById('statusTag').innerText = 'USDT Release Under Review';
+        document.getElementById('tradePendingBox').style.display = 'block';
+        document.getElementById('tradePendingTitle').innerText = 'USDT Release Pending';
+        document.getElementById('tradePendingSub').innerText = 'Admin reviewing...';
+        mb.innerText = 'PROCESSING...'; mb.disabled = true;
+        mb.className = 'main-btn btn-gray'; mb.style.opacity = '0.6';
+      } else {
+        // ── RESTORED: UPI submitted, waiting for buyer ──
+        document.getElementById('statusTag').innerText = 'Waiting for Buyer Payment';
+        mb.innerText = 'RELEASE USDT'; mb.className = 'main-btn btn-r'; mb.disabled = false; mb.style.opacity = '1';
+      }
     } else {
-      document.getElementById('payBox').style.display = 'none'; document.getElementById('sellUpiBox').style.display = 'block';
+      // ── RESTORED: UPI not yet submitted ──
+      document.getElementById('payBox').style.display = 'none';
+      document.getElementById('sellUpiBox').style.display = 'block';
       document.getElementById('sellInrAmt').innerText = o.inr.toLocaleString();
       document.getElementById('statusTag').innerText = 'Enter Your UPI';
       mb.innerText = 'RELEASE USDT'; mb.className = 'main-btn btn-r'; mb.disabled = true; mb.style.opacity = '0.4';
-      if (isNew) { const m = `Hi! Share your UPI so I can send ₹${o.inr.toLocaleString()}.`; setTimeout(() => { appendChatMsg('them', o.merchant, m); persistChatMsg(id, 'them', o.merchant, m); }, 1500); }
+      if (isNew) {
+        const m = `Hi! Share your UPI so I can send ₹${o.inr.toLocaleString()}.`;
+        setTimeout(() => { appendChatMsg('them', o.merchant, m); persistChatMsg(id, 'them', o.merchant, m); }, 1500);
+      }
     }
   }
-  const cb = document.getElementById('chatBox'); if (cb) cb.scrollTop = cb.scrollHeight;
 
-  // Start chat poll only for active deal
+  const cb = document.getElementById('chatBox'); if (cb) cb.scrollTop = cb.scrollHeight;
   startChatPoll();
 }
 
